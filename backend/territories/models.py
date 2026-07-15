@@ -19,9 +19,10 @@ class Territory(models.Model):
     kato_code = models.CharField(
         "КАТО", max_length=20, null=True, blank=True, db_index=True
     )
-    # Технический идентификатор из GADM (GID_1 / GID_2) — надёжный ключ
-    # для связки район -> область, т.к. оба уровня из одного источника.
-    gadm_gid = models.CharField("GADM GID", max_length=40, unique=True)
+    # Технический идентификатор объекта в источнике границ (сейчас —
+    # ID relation в OpenStreetMap). Нужен для повторной синхронизации:
+    # по нему load_boundaries понимает, какую запись обновлять.
+    external_id = models.CharField("ID источника", max_length=40, unique=True)
 
     name = models.CharField("Наименование", max_length=255)
     name_en = models.CharField(

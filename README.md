@@ -24,8 +24,10 @@ docker compose exec web python manage.py load_boundaries   # границы об
 docker compose exec web python manage.py createsuperuser   # доступ в /admin/
 ```
 
-`load_boundaries` идемпотентна — повторный запуск обновляет записи, дублей не создаёт.
-Загружает 14 областей РК (контуром) и 17 районов Алматинской области.
+`load_boundaries` при каждом запуске полностью пересобирает таблицу `Territory`
+из файлов-источников (delete + create) — это осознанно, повторный запуск не
+плодит дублей. Загружает 20 регионов РК (17 областей + Астана, Алматы, Шымкент)
+контуром и 11 районов/городов обл. значения Алматинской области.
 
 ## API территорий
 
@@ -47,13 +49,14 @@ curl "http://localhost:8000/api/territories/?level=region"
 
 ## Данные: источник и ограничения
 
-Границы — GADM 3.6 через [geo-boundaries-kz](https://github.com/open-data-kazakhstan/geo-boundaries-kz),
-КАТО-коды — с [tenderplus.kz/kato](https://tenderplus.kz/kato).
-
-Важно: геометрия **дореформенная** (до 2022 г.), а КАТО — **актуальные**.
-Совпадение идёт по названию, поэтому код отражает текущее деление, а полигон —
-старое. Население пока пустое — зальётся через импорт-мастер.
-Подробнее: [`backend/territories/data/SOURCE.md`](backend/territories/data/SOURCE.md).
+Границы — **OpenStreetMap** (Overpass API + polygons.openstreetmap.fr), уже
+в постреформенных границах (2022 г.): есть Абайская, Жетысуская, Улутауская
+области и отдельные Астана/Алматы/Шымкент. КАТО регионов посчитаны из тега
+`ISO3166-2` и сверены с [tenderplus.kz/kato](https://tenderplus.kz/kato) —
+совпадают. У районов Алматинской области КАТО намеренно не проставлены:
+справочная база на уровне районов ещё не синхронизирована с реформой.
+Население пока пустое — зальётся через импорт-мастер.
+Подробнее и как переехали с GADM: [`backend/territories/data/SOURCE.md`](backend/territories/data/SOURCE.md).
 
 ## Структура
 
@@ -63,9 +66,8 @@ backend/
   riskmap/                  # настройки проекта, settings.py читает .env
   territories/              # территории, слои, риски, импорт
     models.py               # Territory, ThematicLayer, GeoObject, RiskFactor, ImportBatch
-    reference_data.py       # рус. названия + КАТО-коды
     serializers.py / views.py / urls.py
-    data/                   # исходные границы (GeoJSON) + SOURCE.md
+    data/                   # границы из OSM (GeoJSON) + SOURCE.md
     management/commands/load_boundaries.py
   requirements.txt
   Dockerfile

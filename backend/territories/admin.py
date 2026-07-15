@@ -14,7 +14,7 @@ from .models import (
 class TerritoryAdmin(GISModelAdmin):
     list_display = ("name", "level", "kato_code", "parent", "population")
     list_filter = ("level",)
-    search_fields = ("name", "name_en", "kato_code", "gadm_gid")
+    search_fields = ("name", "name_en", "kato_code", "external_id")
     autocomplete_fields = ("parent",)
     ordering = ("level", "name")
 
