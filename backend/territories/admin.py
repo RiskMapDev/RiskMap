@@ -12,34 +12,41 @@ from .models import (
 
 @admin.register(Territory)
 class TerritoryAdmin(GISModelAdmin):
-    list_display = ("name", "level", "kato_code", "parent", "population")
+    list_display = ("name_ru", "level", "kato_code", "parent", "population")
     list_filter = ("level",)
-    search_fields = ("name", "name_en", "kato_code", "external_id")
+    search_fields = ("name_ru", "name_kz", "kato_code", "external_id")
     autocomplete_fields = ("parent",)
-    ordering = ("level", "name")
+    ordering = ("level", "name_ru")
 
 
 @admin.register(ThematicLayer)
 class ThematicLayerAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "is_active", "order")
-    list_editable = ("is_active", "order")
-    search_fields = ("name", "code")
+    list_display = ("name_ru", "code", "color_hex", "is_active", "sort_order")
+    list_editable = ("is_active", "sort_order")
+    search_fields = ("name_ru", "code")
 
 
 @admin.register(GeoObject)
 class GeoObjectAdmin(GISModelAdmin):
-    list_display = ("name", "layer", "territory", "risk_level", "risk_score")
-    list_filter = ("layer", "risk_level")
-    search_fields = ("name",)
+    list_display = (
+        "name", "layer", "territory", "source_system", "risk_level", "risk_score",
+    )
+    list_filter = ("layer", "risk_level", "source_system")
+    search_fields = ("name", "external_id")
 
 
 @admin.register(RiskFactor)
 class RiskFactorAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "layer", "weight", "threshold")
-    search_fields = ("name", "code")
+    list_display = (
+        "indicator_name", "geo_object", "weight", "contribution", "calculated_at",
+    )
+    list_filter = ("indicator_code",)
+    search_fields = ("indicator_name", "indicator_code")
 
 
 @admin.register(ImportBatch)
 class ImportBatchAdmin(admin.ModelAdmin):
-    list_display = ("file_name", "layer", "status", "rows_total", "created_at")
+    list_display = (
+        "file_name", "source_name", "layer", "status", "total_rows", "created_at",
+    )
     list_filter = ("status",)

@@ -17,8 +17,8 @@ class TerritorySerializer(GeoFeatureModelSerializer):
         fields = (
             "id",
             "kato_code",
-            "name",
-            "name_en",
+            "name_ru",
+            "name_kz",
             "level",
             "parent",
             "population",

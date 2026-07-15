@@ -95,9 +95,9 @@ class Command(BaseCommand):
             obj = Territory.objects.create(
                 external_id=str(props["osm_relation_id"]),
                 kato_code=props["kato_code"],
-                name=props["name_ru"],
-                name_en=props.get("name_kk", ""),
-                level=Territory.Level.REGION,
+                name_ru=props["name_ru"],
+                name_kz=props.get("name_kk", ""),
+                level=Territory.Level.OBLAST,
                 parent=None,
                 geometry=to_valid_multipolygon(feature["geometry"]),
             )
@@ -124,9 +124,9 @@ class Command(BaseCommand):
                 # tenderplus.kz/kato ветка региона ещё не отражает
                 # реформу 2022 г. на уровне районов — см. SOURCE.md.
                 kato_code=None,
-                name=props["name_ru"],
-                name_en=props.get("name_kk", ""),
-                level=Territory.Level.DISTRICT,
+                name_ru=props["name_ru"],
+                name_kz=props.get("name_kk", ""),
+                level=Territory.Level.RAYON,
                 parent=parent,
                 geometry=to_valid_multipolygon(feature["geometry"]),
             )

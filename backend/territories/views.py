@@ -8,9 +8,9 @@ class TerritoryViewSet(viewsets.ReadOnlyModelViewSet):
     """Территории (только чтение) в формате GeoJSON.
 
     Query-параметры:
-      ?level=region|district  — фильтр по уровню
-      ?parent=<id>            — районы конкретной области
-      ?parent=null            — только верхний уровень (области)
+      ?level=oblast|rayon|settlement  — фильтр по уровню
+      ?parent=<id>                    — районы конкретной области
+      ?parent=null                    — только верхний уровень (области)
     """
 
     serializer_class = TerritorySerializer
@@ -19,7 +19,7 @@ class TerritoryViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        qs = Territory.objects.all().order_by("level", "name")
+        qs = Territory.objects.all().order_by("level", "name_ru")
 
         level = self.request.query_params.get("level")
         if level:

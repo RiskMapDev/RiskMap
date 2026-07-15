@@ -1,21 +1,25 @@
+from django.conf import settings
 from django.contrib.gis.db import models
 
 
 class Territory(models.Model):
-    """Административно-территориальная единица: область или район.
+    """Административно-территориальная единица: область, район, нас. пункт.
 
     Основная таблица недели 1. Иерархия строится через self-FK `parent`
     (район -> область). Геометрия хранится в PostGIS (SRID 4326, WGS84).
+
+    Значения `level` фиксированы как в ER-диаграмме проекта (oblast/rayon/
+    settlement) — единый словарь для всей команды, не только backend.
     """
 
     class Level(models.TextChoices):
-        COUNTRY = "country", "Страна"
-        REGION = "region", "Область"
-        DISTRICT = "district", "Район"
+        OBLAST = "oblast", "Область"
+        RAYON = "rayon", "Район"
+        SETTLEMENT = "settlement", "Населённый пункт"
 
     # КАТО — официальный классификатор административно-территориальных
-    # объектов РК. В исходных данных GADM его нет, поэтому nullable:
-    # у областей проставляем реальные коды, у районов пока пусто.
+    # объектов РК. Ключ для сопоставления с данными stat.gov.kz и
+    # budget.egov.kz. У районов пока не проставлен — см. data/SOURCE.md.
     kato_code = models.CharField(
         "КАТО", max_length=20, null=True, blank=True, db_index=True
     )
@@ -24,12 +28,10 @@ class Territory(models.Model):
     # по нему load_boundaries понимает, какую запись обновлять.
     external_id = models.CharField("ID источника", max_length=40, unique=True)
 
-    name = models.CharField("Наименование", max_length=255)
-    name_en = models.CharField(
-        "Наименование (лат.)", max_length=255, blank=True
-    )
+    name_ru = models.CharField("Наименование (рус.)", max_length=255)
+    name_kz = models.CharField("Наименование (қаз.)", max_length=255, blank=True)
     level = models.CharField(
-        "Уровень", max_length=16, choices=Level.choices, db_index=True
+        "Уровень", max_length=20, choices=Level.choices, db_index=True
     )
     parent = models.ForeignKey(
         "self",
@@ -51,10 +53,10 @@ class Territory(models.Model):
     class Meta:
         verbose_name = "Территория"
         verbose_name_plural = "Территории"
-        ordering = ["level", "name"]
+        ordering = ["level", "name_ru"]
 
     def __str__(self):
-        return f"{self.get_level_display()}: {self.name}"
+        return f"{self.get_level_display()}: {self.name_ru}"
 
 
 class ThematicLayer(models.Model):
@@ -64,26 +66,32 @@ class ThematicLayer(models.Model):
     подключать без изменения кода — задел под недели 2-5.
     """
 
-    code = models.SlugField("Код", max_length=64, unique=True)
-    name = models.CharField("Наименование", max_length=255)
+    code = models.SlugField("Код", max_length=50, unique=True)
+    name_ru = models.CharField("Наименование", max_length=100)
+    # Цвет маркера/заливки слоя на карте (ТЗ п.7.3 — цветовая индикация).
+    color_hex = models.CharField(
+        "Цвет (HEX)", max_length=7, default="#3388FF", blank=True
+    )
     description = models.TextField("Описание", blank=True)
     is_active = models.BooleanField("Активен", default=True)
-    order = models.PositiveIntegerField("Порядок", default=0)
+    sort_order = models.PositiveIntegerField("Порядок", default=0)
 
     class Meta:
         verbose_name = "Тематический слой"
         verbose_name_plural = "Тематические слои"
-        ordering = ["order", "name"]
+        ordering = ["sort_order", "name_ru"]
 
     def __str__(self):
-        return self.name
+        return self.name_ru
 
 
 class GeoObject(models.Model):
     """Универсальный объект тематического слоя (закупка, организация и т.д.).
 
     Каркас под слои 2-5: конкретный набор полей у каждого слоя разный,
-    поэтому специфичные данные складываем в JSON `attributes`.
+    поэтому специфичные данные складываем в JSON `attributes`. Схема
+    зафиксирована уже на неделе 1 (включая external_id/source_system/
+    imported_at), чтобы недели 2-5 писали данные без новых миграций.
     """
 
     layer = models.ForeignKey(
@@ -100,15 +108,23 @@ class GeoObject(models.Model):
         related_name="geo_objects",
         verbose_name="Территория",
     )
-    name = models.CharField("Наименование", max_length=512)
+    # Идентификатор объекта в исходной системе (напр. номер закупки на
+    # goszakup) — ключ для повторного импорта/обновления без дублей.
+    external_id = models.CharField("ID источника", max_length=100, blank=True)
+    # Из какой системы пришли данные (goszakup, kgd, egov...) — ТЗ п.15.3
+    # "фиксация источника и даты актуальности".
+    source_system = models.CharField("Система-источник", max_length=50, blank=True)
+    imported_at = models.DateTimeField("Дата импорта", null=True, blank=True)
+
+    name = models.CharField("Наименование", max_length=500)
     attributes = models.JSONField("Атрибуты", default=dict, blank=True)
     geometry = models.GeometryField(
         "Геометрия", srid=4326, null=True, blank=True
     )
-    risk_score = models.FloatField("Балл риска", null=True, blank=True)
-    risk_level = models.CharField(
-        "Уровень риска", max_length=16, blank=True
+    risk_score = models.DecimalField(
+        "Балл риска", max_digits=5, decimal_places=2, null=True, blank=True
     )
+    risk_level = models.CharField("Уровень риска", max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -121,31 +137,38 @@ class GeoObject(models.Model):
 
 
 class RiskFactor(models.Model):
-    """Индикатор риска: вес и порог для расчёта интегральной оценки.
+    """Расшифровка расчёта риска: вклад одного индикатора в risk_score
+    конкретного объекта (ТЗ п.14 — "пользователь должен видеть
+    расшифровку расчёта").
 
-    Каркас под модуль оценки риска (единый стандарт уровней для всех слоёв).
+    Таблица создаётся на неделе 1, реально используется с недели 2
+    (закупки) — до этого пустая, без изменений структуры.
     """
 
-    layer = models.ForeignKey(
-        ThematicLayer,
-        null=True,
-        blank=True,
+    geo_object = models.ForeignKey(
+        GeoObject,
         on_delete=models.CASCADE,
         related_name="risk_factors",
-        verbose_name="Слой",
+        verbose_name="Объект",
     )
-    code = models.SlugField("Код", max_length=64, unique=True)
-    name = models.CharField("Наименование", max_length=255)
-    description = models.TextField("Описание", blank=True)
-    weight = models.FloatField("Вес", default=1.0)
-    threshold = models.FloatField("Порог", null=True, blank=True)
+    indicator_code = models.CharField("Код индикатора", max_length=50)
+    indicator_name = models.CharField("Наименование индикатора", max_length=255)
+    raw_value = models.DecimalField(
+        "Исходное значение", max_digits=18, decimal_places=4, null=True, blank=True
+    )
+    weight = models.DecimalField("Вес", max_digits=4, decimal_places=2, default=1)
+    contribution = models.DecimalField(
+        "Вклад в итоговый балл", max_digits=5, decimal_places=2
+    )
+    calculated_at = models.DateTimeField("Рассчитано", auto_now_add=True)
 
     class Meta:
-        verbose_name = "Индикатор риска"
-        verbose_name_plural = "Индикаторы риска"
+        verbose_name = "Фактор риска"
+        verbose_name_plural = "Факторы риска (расшифровка расчёта)"
+        ordering = ["-calculated_at"]
 
     def __str__(self):
-        return self.name
+        return f"{self.indicator_name} -> {self.geo_object_id}"
 
 
 class ImportBatch(models.Model):
@@ -156,7 +179,8 @@ class ImportBatch(models.Model):
         DONE = "done", "Завершено"
         ERROR = "error", "Ошибка"
 
-    file_name = models.CharField("Файл", max_length=512)
+    file_name = models.CharField("Файл", max_length=255)
+    source_name = models.CharField("Источник данных", max_length=100, blank=True)
     layer = models.ForeignKey(
         ThematicLayer,
         null=True,
@@ -165,12 +189,19 @@ class ImportBatch(models.Model):
         verbose_name="Слой",
     )
     status = models.CharField(
-        "Статус", max_length=16, choices=Status.choices, default=Status.PENDING
+        "Статус", max_length=20, choices=Status.choices, default=Status.PENDING
     )
-    rows_total = models.PositiveIntegerField("Всего строк", default=0)
-    rows_ok = models.PositiveIntegerField("Загружено", default=0)
-    rows_error = models.PositiveIntegerField("С ошибками", default=0)
-    log = models.TextField("Протокол", blank=True)
+    total_rows = models.PositiveIntegerField("Всего строк", default=0)
+    imported_rows = models.PositiveIntegerField("Загружено", default=0)
+    error_rows = models.PositiveIntegerField("С ошибками", default=0)
+    error_log = models.JSONField("Протокол ошибок", default=list, blank=True)
+    imported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name="Кем загружено",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
