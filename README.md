@@ -20,14 +20,23 @@ docker compose up --build
 
 ```bash
 docker compose exec web python manage.py migrate
-docker compose exec web python manage.py load_boundaries   # границы областей и районов
-docker compose exec web python manage.py createsuperuser   # доступ в /admin/
+docker compose exec web python manage.py load_boundaries      # границы областей и районов
+docker compose exec web python manage.py load_territory_stats # население и площадь
+docker compose exec web python manage.py createsuperuser      # доступ в /admin/
 ```
 
 `load_boundaries` при каждом запуске полностью пересобирает таблицу `Territory`
 из файлов-источников (delete + create) — это осознанно, повторный запуск не
 плодит дублей. Загружает 20 регионов РК (17 областей + Астана, Алматы, Шымкент)
 контуром и 11 районов/городов обл. значения Алматинской области.
+
+`load_territory_stats` запускается **после** `load_boundaries` (он пересоздаёт
+Territory, стерев population/area_km2) и обновляет их из
+`territories/data/socioeconomic_almaty.json` — площадь всех 17 областей и
+площадь+население Алматинской области с районами (источник — stat.gov.kz,
+файлы аналитика). Площадь Астаны/Алматы/Шымкента в источнике не приведена,
+население областей вне Алматинской — тоже; заполнится позже через
+импорт-мастер.
 
 ## API территорий
 
