@@ -3,3 +3,9 @@ djangorestframework==3.15.1
 djangorestframework-gis==1.1
 psycopg2-binary==2.9.9
 django-environ==0.11.2
+
+# Импорт слоёв из Excel (неделя 2+): чтение xlsx и расчёт риск-индикаторов.
+pandas==2.2.2
+openpyxl==3.1.5
+# Расшифровка защищённых паролем xlsx (файлы аналитиков agile-encrypted).
+msoffcrypto-tool==5.4.2

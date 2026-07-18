@@ -97,7 +97,9 @@ class GeoObject(models.Model):
     layer = models.ForeignKey(
         ThematicLayer,
         on_delete=models.CASCADE,
-        related_name="objects",
+        # related_name НЕ "objects": иначе обратный аксессор затенит
+        # менеджер ThematicLayer.objects (Model.objects перестанет работать).
+        related_name="geo_objects",
         verbose_name="Слой",
     )
     territory = models.ForeignKey(
