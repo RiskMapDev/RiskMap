@@ -38,6 +38,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from territories.analytics import risk_level_for
 from territories.models import (
     GeoObject,
     ImportBatch,
@@ -67,8 +68,8 @@ INDICATORS = [
 ]
 WEIGHTS = {code: float(w) for code, _, w in INDICATORS}
 
-# Пороги уровней (ТЗ п.7.3). Должны совпадать с общим стандартом команды.
-RISK_BANDS = [(75, "critical"), (55, "high"), (35, "medium"), (0, "low")]
+# risk_level_for (пороги уровней, ТЗ п.7.3) импортирован из
+# territories.analytics — единый источник, общий с API-эндпоинтами.
 
 # Параметры нормировки индикаторов в [0;1] — вынесены в константы,
 # чтобы аналитик мог их калибровать без правки формул.
@@ -107,13 +108,6 @@ def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     if x is None or (isinstance(x, float) and math.isnan(x)):
         return 0.0
     return max(lo, min(hi, x))
-
-
-def risk_level_for(score: float) -> str:
-    for threshold, level in RISK_BANDS:
-        if score >= threshold:
-            return level
-    return "low"
 
 
 # --------------------------------------------------------------------------
