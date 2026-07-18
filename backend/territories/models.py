@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.gis.db import models
+from django.contrib.postgres.indexes import GinIndex
 
 
 class Territory(models.Model):
@@ -133,6 +134,14 @@ class GeoObject(models.Model):
     class Meta:
         verbose_name = "Объект слоя"
         verbose_name_plural = "Объекты слоёв"
+        indexes = [
+            # Агрегация района/области фильтрует объекты по слою и территории.
+            models.Index(fields=["layer", "territory"]),
+            # Фильтр по уровню риска (карта, вкладка «Риски»).
+            models.Index(fields=["risk_level"]),
+            # Быстрые выборки по JSON-атрибутам (by_year, paid_total и т.д.).
+            GinIndex(fields=["attributes"], name="geoobject_attrs_gin"),
+        ]
 
     def __str__(self):
         return self.name
