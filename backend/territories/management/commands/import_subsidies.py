@@ -114,11 +114,43 @@ def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
 # Чтение файла
 # --------------------------------------------------------------------------
 
-def load_dataframe(path: Path, password: str | None):
-    """Читает Excel. При наличии пароля снимает шифрование в память.
+# Лист с сырыми данными и «якорные» колонки для поиска строки заголовков.
+DEFAULT_SHEET = "Данные"
+HEADER_ANCHORS = ("DistrictName", "EnterpriseXin")
 
-    Файл аналитиков может быть agile-encrypted (расширение .xlsx, внутри
-    OLE2-контейнер) — openpyxl такой файл не откроет без расшифровки.
+
+def _pick_sheet(xl, sheet):
+    """Выбирает лист: явный аргумент -> «Данные» -> первый лист."""
+    if sheet:
+        if sheet not in xl.sheet_names:
+            raise CommandError(
+                f"Листа «{sheet}» нет. Доступны: {', '.join(xl.sheet_names)}"
+            )
+        return sheet
+    if DEFAULT_SHEET in xl.sheet_names:
+        return DEFAULT_SHEET
+    return xl.sheet_names[0]
+
+
+def _detect_header_row(xl, sheet):
+    """Ищет строку заголовков по «якорным» колонкам (файл аналитиков может
+    иметь merged-заголовок сверху, из-за чего header не на строке 0)."""
+    import pandas as pd
+
+    probe = pd.read_excel(xl, sheet_name=sheet, header=None, dtype=str, nrows=15)
+    for i in range(len(probe)):
+        values = {str(v).strip() for v in probe.iloc[i].tolist()}
+        if all(anchor in values for anchor in HEADER_ANCHORS):
+            return i
+    return 0
+
+
+def load_dataframe(path: Path, password: str | None, sheet: str | None = None):
+    """Читает Excel аналитиков. При наличии пароля снимает шифрование в память.
+
+    Устойчив к формату «книги с расчётом»: сырьё лежит на листе «Данные»,
+    заголовки — не обязательно на первой строке (сверху бывает merged-титул).
+    Лист и строку заголовков определяем автоматически.
     """
     import pandas as pd
 
@@ -138,12 +170,18 @@ def load_dataframe(path: Path, password: str | None):
         buffer.seek(0)
         handle = buffer
 
-    df = pd.read_excel(handle, dtype=str)
+    xl = pd.ExcelFile(handle, engine="openpyxl")
+    target = _pick_sheet(xl, sheet)
+    header_row = _detect_header_row(xl, target)
+
+    df = pd.read_excel(xl, sheet_name=target, header=header_row, dtype=str)
     df.columns = [str(c).strip() for c in df.columns]
 
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
-        raise CommandError(f"В файле нет обязательных колонок: {', '.join(missing)}")
+        raise CommandError(
+            f"На листе «{target}» нет обязательных колонок: {', '.join(missing)}"
+        )
     return df
 
 
@@ -285,6 +323,10 @@ class Command(BaseCommand):
         parser.add_argument("--password", default=None, help="Пароль Excel, если зашифрован")
         parser.add_argument("--source-name", default="Субсидии (файл аналитиков)")
         parser.add_argument("--user", default=None, help="username, кто загрузил")
+        parser.add_argument(
+            "--sheet", default=None,
+            help="Имя листа с сырьём (по умолчанию «Данные», иначе первый)",
+        )
         parser.add_argument("--dry-run", action="store_true", help="Не писать в БД")
 
     def handle(self, *args, **options):
@@ -293,7 +335,7 @@ class Command(BaseCommand):
             raise CommandError(f"Файл не найден: {path}")
 
         self.stdout.write("Чтение файла…")
-        df = prepare(load_dataframe(path, options["password"]))
+        df = prepare(load_dataframe(path, options["password"], options["sheet"]))
         total_rows = len(df)
 
         # --- сопоставление районов с Territory ---
