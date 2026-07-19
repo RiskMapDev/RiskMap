@@ -1,0 +1,36 @@
+@import "leaflet/dist/leaflet.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+/* Dark mode (default) */
+html.dark, html.dark body { background: #0d1117; color: #e6edf3; }
+
+/* Light mode */
+html:not(.dark), html:not(.dark) body { background: #f6f8fa; color: #1f2328; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  transition: background 0.25s, color 0.25s;
+}
+
+/* Card CSS variables (used in DistrictCard) */
+html.dark {
+  --card-bg:     #161b22;
+  --card-bg2:    #1c2128;
+  --card-border: #30363d;
+  --card-dim:    #8b949e;
+  --card-text:   #e6edf3;
+  --map-bg:      #0a0e14;
+}
+html:not(.dark) {
+  --card-bg:     #ffffff;
+  --card-bg2:    #f0f2f5;
+  --card-border: #d0d7de;
+  --card-dim:    #656d76;
+  --card-text:   #1f2328;
+  --map-bg:      #e8ecf0;
+}

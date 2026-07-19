@@ -1,0 +1,28 @@
+# Python virtualenvs
+**/venv/
+**/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Django
+*.sqlite3
+media/
+
+# Node
+node_modules/
+frontend/build/
+build/
+
+# Env files
+.env
+*.env
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
