@@ -13,6 +13,13 @@
 # testing
 /coverage
 
+# playwright: трассировки, скриншоты и отчёты прогона — артефакты запуска,
+# а не исходники, и в истории им делать нечего
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # next.js
 /.next/
 /out/

@@ -25,15 +25,19 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Numeric,
     Select,
     SQLColumnExpression,
     String,
     case,
+    cast,
     func,
     literal,
+    null,
     or_,
     select,
 )
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement
 
@@ -120,15 +124,24 @@ def _normalized(
     source_layer: str,
 ) -> list[ColumnLike]:
     """Привести колонки слоя к общему виду."""
-    null_text = literal(None, type_=String)
+    # NULL приводится к типу явным CAST в самом SQL, а не только аннотацией на
+    # стороне Python. Без этого Postgres отдаёт нетипизированный NULL как
+    # текст, и драйвер спотыкается при разборе результата.
+    #
+    # Проявлялось только при выборке по одному типу объектов: в объединении из
+    # нескольких веток тип подхватывался от соседней. Поэтому фильтр
+    # «только организации» падал, а «организации и договоры» работал.
+    null_text = cast(null(), String)
+    null_uuid = cast(null(), PG_UUID(as_uuid=True))
+    null_money = cast(null(), Numeric)
 
     return [
         literal(object_type.value).label("object_type"),
         func.cast(object_id, String).label("object_id"),
         title.label("title"),
         (subtitle if subtitle is not None else null_text).label("subtitle"),
-        (territory_id if territory_id is not None else literal(None)).label("territory_id"),
-        (amount if amount is not None else literal(None)).label("amount"),
+        (territory_id if territory_id is not None else null_uuid).label("territory_id"),
+        (amount if amount is not None else null_money).label("amount"),
         literal(amount_unit).label("amount_unit"),
         (risk_score if risk_score is not None else literal(None)).label("risk_score"),
         risk_level.label("risk_level"),

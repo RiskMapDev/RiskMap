@@ -146,6 +146,32 @@ class TestРасшифровка:
         effects = {factor.effect for factor in card.factors}
         assert effects <= {"повысил риск", "не повлиял", "не измерено"}
 
+    def test_служебные_ключи_не_попадают_в_факторы(self, session: Session) -> None:
+        """Расшифровка лежит внутри обёртки со сведениями об оценке целиком.
+
+        Ключи обёртки — уровень, модель, примечания, балл — описывают оценку,
+        а не отдельный индикатор. Раньше они попадали в список факторов, и
+        карточка договора 10303009 писала «не измерено индикаторов: 4»,
+        показывая при этом шесть строк. Пользователь, считающий строки,
+        получал неверное представление о полноте.
+        """
+        card = object_detail.load_detail(session, ObjectType.CONTRACT, "10303009")
+
+        assert card is not None
+        codes = {factor.code for factor in card.factors}
+
+        assert not codes & {"level", "model", "notes", "score", "factors"}
+        # У методики слоя 8.4 девять индикаторов — ровно столько и ожидается.
+        assert len(card.factors) == 9
+
+    def test_число_неизмеренных_совпадает_со_списком(self, session: Session) -> None:
+        """Счётчик и список обязаны сходиться — иначе один из них врёт."""
+        card = object_detail.load_detail(session, ObjectType.CONTRACT, "10303009")
+
+        assert card is not None
+        unmeasured = [f for f in card.factors if not f.measured]
+        assert len(card.unmeasured_factors) == len(unmeasured)
+
     def test_происхождение_записи_сохранено(self, session: Session) -> None:
         """Без происхождения оценку нельзя ни проверить, ни воспроизвести."""
         card = object_detail.load_detail(session, ObjectType.CONTRACT, "22333284")

@@ -128,44 +128,67 @@ def _factors_from_list(raw: list[dict[str, Any]] | None) -> tuple[FactorRow, ...
 
 
 def _factors_from_mapping(raw: dict[str, Any] | None) -> tuple[FactorRow, ...]:
-    """Расшифровка, сохранённая словарём (слои 8.3, 8.4, 8.5).
+    """Расшифровка из словаря вида «код индикатора → значение».
 
-    Значение может быть как числом, так и вложенным словарём с весом и
-    вкладом. Оба вида приводятся к одной строке расшифровки.
+    Такой вид встречается в колонке `indicator_values`: там лежат только
+    измеренные значения без описаний.
     """
     if not raw:
         return ()
 
     rows: list[FactorRow] = []
     for code, item in raw.items():
-        if isinstance(item, dict):
-            rows.append(
-                FactorRow(
-                    code=code,
-                    name=str(item.get("name", code)),
-                    weight=_as_float(item.get("weight")),
-                    value=_as_float(item.get("value")),
-                    contribution=_as_float(item.get("contribution")),
-                    measured=bool(item.get("measured", item.get("value") is not None)),
-                    note=str(item.get("note", "")),
-                    source=str(item.get("source", "")),
-                )
+        value = _as_float(item)
+        rows.append(
+            FactorRow(
+                code=code,
+                name=code,
+                weight=None,
+                value=value,
+                contribution=None,
+                measured=value is not None,
+                note="" if value is not None else "значение отсутствует в источнике",
             )
-        else:
-            value = _as_float(item)
-            rows.append(
-                FactorRow(
-                    code=code,
-                    name=code,
-                    weight=None,
-                    value=value,
-                    contribution=None,
-                    measured=value is not None,
-                    note="" if value is not None else "значение отсутствует в источнике",
-                )
-            )
+        )
 
     return tuple(rows)
+
+
+# Ключи обёртки, в которую слои кладут расшифровку рядом с самой расшифровкой.
+# Они описывают оценку целиком, а не отдельный индикатор, и попадать в список
+# факторов не должны.
+_WRAPPER_KEYS = frozenset({"level", "model", "model_version", "notes", "score", "factors"})
+
+
+def _extract_factors(raw: object) -> tuple[FactorRow, ...]:
+    """Достать расшифровку независимо от того, как слой её сохранил.
+
+    Встречаются три вида:
+
+    * обёртка `{"level": …, "score": …, "factors": [ … ]}` — слои 8.3–8.5;
+    * готовый список факторов — слои 8.6 и 8.7;
+    * плоский словарь «код → значение» — колонка `indicator_values`.
+
+    Ключи обёртки в список факторов не попадают. Раньше попадали, и карточка
+    договора писала «не измерено индикаторов: 4», показывая при этом шесть
+    строк, три из которых были служебными. Пользователь, считающий строки,
+    получал неверное представление о полноте данных.
+    """
+    if raw is None:
+        return ()
+
+    if isinstance(raw, list):
+        return _factors_from_list(raw)
+
+    if isinstance(raw, dict):
+        nested = raw.get("factors")
+        if isinstance(nested, list):
+            return _factors_from_list(nested)
+
+        payload = {key: value for key, value in raw.items() if key not in _WRAPPER_KEYS}
+        return _factors_from_mapping(payload)
+
+    return ()
 
 
 def _territory(session: Session, territory_id: Any) -> tuple[str | None, str | None]:
@@ -206,7 +229,7 @@ def load_contract(session: Session, contract_id: str) -> ObjectDetail | None:
         risk_model_version=contract.model_version,
         override_reason=contract.override_reason or "",
         explanation=contract.explanation_ru or "",
-        factors=_factors_from_mapping(contract.factors or contract.indicator_values),
+        factors=_extract_factors(contract.factors or contract.indicator_values),
         fields={
             "Номер договора": contract.contract_id,
             "Плановая сумма": _as_float(contract.planned_amount),
@@ -248,7 +271,7 @@ def load_subsidy_recipient(session: Session, key: str) -> ObjectDetail | None:
         risk_score=_as_float(recipient.risk_score),
         risk_level=RiskLevel(recipient.risk_level),
         risk_completeness=_as_float(recipient.risk_completeness),
-        factors=_factors_from_mapping(recipient.factors),
+        factors=_extract_factors(recipient.factors),
         fields={
             "Сумма субсидий": _as_float(recipient.total_amount),
             "Риск-экспозиция": _as_float(recipient.risk_exposure),
@@ -291,7 +314,7 @@ def load_project_entity(session: Session, object_id: str) -> ObjectDetail | None
         risk_model_code=project.risk_model_code,
         risk_model_version=project.risk_model_version,
         override_reason=project.risk_override_applied or "",
-        factors=_factors_from_list(project.risk_factors),
+        factors=_extract_factors(project.risk_factors),
         notes=tuple(project.risk_notes or ()),
         fields={"Территория в источнике": project.territory_raw},
         provenance={
@@ -328,7 +351,7 @@ def load_organization(session: Session, bin_code: str) -> ObjectDetail | None:
         # рядом, но не подменяет уровень: так решено заказчиком.
         risk_is_preliminary=strict == RiskLevel.UNKNOWN.value,
         risk_completeness=organization.risk_completeness,
-        factors=_factors_from_list(organization.risk_factors),
+        factors=_extract_factors(organization.risk_factors),
         notes=tuple(organization.risk_notes or ()),
         fields={
             "БИН": organization.bin,

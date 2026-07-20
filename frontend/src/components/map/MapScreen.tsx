@@ -13,14 +13,26 @@ import {
   parseViewMode,
   type ViewMode,
 } from "@/components/map/ViewSwitcher";
+import { ObjectsPanel } from "@/components/map/ObjectsPanel";
 import {
   fetchLayers,
   fetchTerritoriesGeoJson,
   type ThematicLayerInfo,
   type TerritoriesGeoJson,
 } from "@/lib/api/territories";
+import {
+  DEFAULT_QUERY_SPEC,
+  fromSearchParams,
+  toSearchParams,
+  type QuerySpec,
+} from "@/lib/query-spec";
 
 export type MapLevel = "region" | "district";
+
+const LEVEL_TITLES: Record<MapLevel, string> = {
+  region: "области Казахстана",
+  district: "районы Алматинской области",
+};
 
 const LEVELS = [
   {
@@ -118,20 +130,41 @@ export function MapScreen() {
   */
   const [view, setView] = useState<ViewMode>("map");
 
+  /*
+    Выборка живёт в том же адресе, что и режим показа. Это и есть требование
+    ТЗ: «Списком» и «На карте» — два представления ОДНОЙ выборки, а не две
+    страницы с расходящимся состоянием. Переключение режима не трогает
+    фильтры, а смена фильтров видна обоим представлениям сразу.
+  */
+  const [spec, setSpec] = useState<QuerySpec>(DEFAULT_QUERY_SPEC);
+
   useEffect(() => {
-    const apply = () =>
-      setView(parseViewMode(new URLSearchParams(window.location.search).get(VIEW_MODE_PARAM)));
+    const apply = () => {
+      const params = new URLSearchParams(window.location.search);
+      setView(parseViewMode(params.get(VIEW_MODE_PARAM)));
+      setSpec(fromSearchParams(params));
+    };
     apply();
-    // Кнопки «назад» и «вперёд» обязаны возвращать прежний режим.
+    // Кнопки «назад» и «вперёд» обязаны возвращать и режим, и фильтры.
     window.addEventListener("popstate", apply);
     return () => window.removeEventListener("popstate", apply);
   }, []);
 
-  function changeView(next: ViewMode) {
-    const params = new URLSearchParams(window.location.search);
-    params.set(VIEW_MODE_PARAM, next);
+  /** Записать состояние в адрес, сохранив то, чем управляет другая часть экрана. */
+  function pushState(nextView: ViewMode, nextSpec: QuerySpec) {
+    const params = toSearchParams(nextSpec);
+    params.set(VIEW_MODE_PARAM, nextView);
     window.history.pushState({}, "", `?${params.toString()}`);
+  }
+
+  function changeView(next: ViewMode) {
+    pushState(next, spec);
     setView(next);
+  }
+
+  function changeSpec(next: QuerySpec) {
+    pushState(view, next);
+    setSpec(next);
   }
 
   const [level, setLevel] = useState<MapLevel>("district");
@@ -209,41 +242,77 @@ export function MapScreen() {
       даёт определённый размер независимо от способа раскладки родителя.
     */
     <div className="absolute inset-0 flex">
-      <div className="relative min-w-0 flex-1">
-        {error ? (
-          <div
-            role="alert"
-            className="flex h-full flex-col items-center justify-center gap-2 bg-surface-muted p-6 text-center"
-          >
-            <p className="text-sm font-medium text-text">Границы не загрузились</p>
-            <p className="max-w-md text-sm text-text-muted">{error}</p>
-            <p className="max-w-md text-xs text-text-subtle">
-              Это сбой связи с сервером, а не отсутствие объектов в регионе.
-            </p>
-          </div>
-        ) : (
-          <MapView
-            geojson={geojson ? { type: "FeatureCollection", features } : null}
-            attribution={geojson?.attribution ?? ""}
-            selectedCode={selected}
-            onSelect={setSelected}
-            onHover={setHovered}
-            loading={loading}
-          />
-        )}
+      {/* Заголовок нужен скринридеру: без него страницу нечем назвать. */}
+      <h1 className="sr-only">Карта рисков — {LEVEL_TITLES[level]}</h1>
 
-        <div className="absolute left-14 top-3 z-10 flex flex-wrap items-center gap-2">
-          <ViewSwitcher value={view} onChange={changeView} />
-          <LevelSwitcher level={level} onChange={setLevel} />
+      {/*
+        Режим «Списком» отдаёт всю ширину списку, «Карта + список» делит её.
+        Список и карта берут одну и ту же выборку, поэтому переключение
+        режима не перезапрашивает фильтры и не сбрасывает состояние.
+      */}
+      {/* Карта: занимает всю ширину в режиме «На карте», половину — в сдвоенном. */}
+      {view !== "list" && (
+        <div className="relative min-w-0 flex-1">
+          {error ? (
+            <div
+              role="alert"
+              className="flex h-full flex-col items-center justify-center gap-2 bg-surface-muted p-6 text-center"
+            >
+              <p className="text-sm font-medium text-text">Границы не загрузились</p>
+              <p className="max-w-md text-sm text-text-muted">{error}</p>
+              <p className="max-w-md text-xs text-text-subtle">
+                Это сбой связи с сервером, а не отсутствие объектов в регионе.
+              </p>
+            </div>
+          ) : (
+            <MapView
+              geojson={geojson ? { type: "FeatureCollection", features } : null}
+              attribution={geojson?.attribution ?? ""}
+              selectedCode={selected}
+              onSelect={setSelected}
+              onHover={setHovered}
+              loading={loading}
+            />
+          )}
+
+          <div className="absolute left-14 top-3 z-10 flex flex-wrap items-center gap-2">
+            <ViewSwitcher value={view} onChange={changeView} />
+            <LevelSwitcher level={level} onChange={setLevel} />
+          </div>
+
+          {hovered && (
+            <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
+              <TerritoryPopup territory={hovered} />
+            </div>
+          )}
         </div>
+      )}
 
-        {hovered && (
-          <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
-            <TerritoryPopup territory={hovered} />
+      {/* Список: в режиме «Списком» на всю ширину, в сдвоенном — правая колонка. */}
+      {view !== "map" && (
+        <div
+          className={
+            view === "list"
+              ? "flex min-w-0 flex-1 flex-col"
+              : "hidden w-[26rem] shrink-0 flex-col border-l border-border-base xl:flex"
+          }
+        >
+          {view === "list" && (
+            <div className="shrink-0 border-b border-border-base bg-surface px-4 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <ViewSwitcher value={view} onChange={changeView} />
+                <LevelSwitcher level={level} onChange={setLevel} />
+              </div>
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            <ObjectsPanel spec={spec} onSpecChange={changeSpec} selectedId={selected} />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
+      {/* Панель слоёв нужна только карте: в режиме списка она ни на что не влияет. */}
+      {view !== "list" && (
       <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-border-base bg-surface p-4 lg:block">
         <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
           <Layers className="size-3.5" aria-hidden="true" />
@@ -296,6 +365,7 @@ export function MapScreen() {
           </div>
         )}
       </aside>
+      )}
     </div>
   );
 }
