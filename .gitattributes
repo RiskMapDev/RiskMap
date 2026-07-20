@@ -1,0 +1,17 @@
+# Единый перевод строки в репозитории — LF, независимо от ОС разработчика.
+* text=auto eol=lf
+
+# Бинарные и уже нормализованные форматы не трогать.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.xlsx binary
+*.docx binary
+*.zip binary
+*.pdf binary
+
+# Скрипты Windows должны сохранять CRLF, иначе PowerShell ругается.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
