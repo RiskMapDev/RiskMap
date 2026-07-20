@@ -637,9 +637,21 @@ class TestЗагрузкаВБазу:
         assert "duplicate_osm_object" in codes
 
     def test_ошибок_качества_нет(self, session: Session) -> None:
+        """У импорта территорий нет ни одного замечания уровня ERROR.
+
+        Проверка ограничена заданиями импортёра `territories`, как и соседняя
+        проверка статуса задания. Раньше она смотрела на всю таблицу замечаний
+        и потому падала, как только в базе появлялся любой другой импортёр:
+        утверждение «в справочнике территорий всё чисто» подменялось
+        утверждением «во всей системе нигде ничего не сломано», а это разные
+        вещи и проверять их должны разные тесты.
+        """
         errors = session.scalars(
-            select(DataQualityIssue).where(
-                DataQualityIssue.severity == IssueSeverity.ERROR
+            select(DataQualityIssue)
+            .join(ImportJob, ImportJob.id == DataQualityIssue.import_job_id)
+            .where(
+                ImportJob.importer == "territories",
+                DataQualityIssue.severity == IssueSeverity.ERROR,
             )
         ).all()
         assert errors == []

@@ -99,10 +99,12 @@ def create_app() -> FastAPI:
         return response
 
     from app.api.object_routes import router as object_router
+    from app.api.report_routes import router as report_router
     from app.api.territory_routes import router as territory_router
 
     app.include_router(territory_router, prefix=settings.api_prefix)
     app.include_router(object_router, prefix=settings.api_prefix)
+    app.include_router(report_router, prefix=settings.api_prefix)
 
     # Маршруты доступа. Префикс версии задан настройкой: ломающие изменения API
     # должны выражаться сменой версии, а не правкой путей по месту.
