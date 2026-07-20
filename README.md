@@ -1,29 +1,41 @@
-# Интерактивная карта рисков — backend
+# Интерактивная карта рисков
 
-Django + GeoDjango + PostgreSQL/PostGIS + DRF. Redis поднят как заглушка под будущий кэш/очереди.
+Backend: Django + GeoDjango + PostgreSQL/PostGIS + DRF (JWT).
+Frontend: React + TypeScript + Leaflet + Recharts.
+Всё поднимается одним `docker compose` — **один бэкенд, один фронтенд**.
 
 ## Запуск окружения (одна команда)
 
 ```bash
-cp .env.example .env   # уже сделано в репозитории со значениями по умолчанию для локальной разработки
+cp .env.example .env   # уже есть в репозитории со значениями для локальной разработки
 docker compose up --build
 ```
 
-Поднимутся три сервиса:
+Поднимутся сервисы:
 - `db` — PostgreSQL 16 + PostGIS 3.4, порт `5432`
 - `redis` — Redis 7, порт `6379`
-- `web` — Django dev-сервер, порт `8000`
+- `web` — Django, порт `8000` (напрямую) и через nginx
+- `frontend` — собирает React в общий том и завершается (это нормально)
+- `nginx` — **главная точка входа, порт `80`**: раздаёт фронтенд и проксирует `/api/`, `/admin/`
 
-Проверить: [http://localhost:8000/admin/](http://localhost:8000/admin/)
+Открыть: **[http://localhost/](http://localhost/)** — вход `admin` / `admin123`.
+Админка Django: [http://localhost/admin/](http://localhost/admin/).
 
-## Первый запуск: миграции, данные, админка
+> Фронтенд ходит в API по относительному пути `/api` — порт нигде не зашит.
+> Для `npm start` вне докера можно задать `REACT_APP_API_URL`.
+
+## Первый запуск: миграции, данные, пользователи
 
 ```bash
 docker compose exec web python manage.py migrate
 docker compose exec web python manage.py load_boundaries      # границы областей и районов
 docker compose exec web python manage.py load_territory_stats # население и площадь
-docker compose exec web python manage.py createsuperuser      # доступ в /admin/
+docker compose exec web python manage.py seed_demo_users      # демо-логины под все роли ТЗ
 ```
+
+`seed_demo_users` создаёт: `admin/admin123` (администратор), `analyst1/analyst123`
+(аналитик), `manager1/manager123` (руководитель), `viewer1/viewer123` (просмотр).
+Идемпотентна — существующих не трогает.
 
 `load_boundaries` при каждом запуске полностью пересобирает таблицу `Territory`
 из файлов-источников (delete + create) — это осознанно, повторный запуск не
@@ -96,6 +108,8 @@ curl "http://localhost:8000/api/territories/?level=oblast"
 
 | Запрос | Что возвращает |
 |---|---|
+| `POST /api/token/` | вход: `{username, password}` -> `{access, refresh}` (JWT) |
+| `POST /api/token/refresh/` | обновление access-токена |
 | `GET /api/layers/` | активные слои для панели (динамическая) |
 | `GET /api/territories/risk/?layer=&parent=&year=&risk_level=` | GeoJSON районов с **взвешенным по сумме** риском — заливка карты |
 | `GET /api/dashboard/?layer=&territory=&year=` | сводка по области ИЛИ району (ветвится по `territory.level`) |
@@ -147,20 +161,32 @@ curl "http://localhost:8000/api/territories/?level=oblast"
 ## Структура
 
 ```
-backend/
+backend/                    # ЕДИНСТВЕННЫЙ бэкенд проекта
   manage.py
-  riskmap/                  # настройки проекта, settings.py читает .env
-  accounts/                 # кастомный User (AUTH_USER_MODEL), роли
+  riskmap/                  # настройки, settings.py читает .env; JWT + CORS
+  accounts/                 # кастомный User (AUTH_USER_MODEL), роли ТЗ
+    management/commands/seed_demo_users.py
   territories/              # территории, слои, риски, импорт
     models.py               # Territory, ThematicLayer, GeoObject, RiskFactor, ImportBatch
-    serializers.py / views.py / urls.py
+    analytics.py            # пороги риска + взвешенная агрегация (общий модуль)
+    serializers.py / views.py / urls.py / tests.py
     data/                   # границы из OSM (GeoJSON) + SOURCE.md
-    management/commands/load_boundaries.py
+    management/commands/    # load_boundaries, load_territory_stats, import_subsidies
   requirements.txt
   Dockerfile
+frontend/                   # React + TS (карта, дашборд, импорт-мастер)
+  src/api/                  # один axios-клиент на относительный /api
+  src/pages/ src/components/
+  Dockerfile                # собирает build и кладёт в том для nginx
+nginx/nginx.conf            # раздаёт фронт, проксирует /api/ и /admin/
 docker-compose.yml
 .env.example
 ```
+
+> **Про «много бэкендов»:** в ветке `nuray-dev` какое-то время лежали ещё два
+> Django-проекта (`backend/` с приложениями-заглушками и копия `riskmap_backend/`).
+> Они возникли потому, что ветка была начата с нуля, без общего предка с `main`.
+> В `main` оставлен один бэкенд — этот; дубли не переносились.
 
 ## Статус по плану недели 1
 

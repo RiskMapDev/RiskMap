@@ -127,7 +127,10 @@ class TerritoryRiskView(APIView):
                 "properties": {
                     "id": rayon.id,
                     "name_ru": rayon.name_ru,
+                    "name_kz": rayon.name_kz,
                     "kato_code": rayon.kato_code,
+                    "population": rayon.population,
+                    "area_km2": rayon.area_km2,
                     "risk_score": metrics["avg_risk_weighted"],
                     "risk_level": metrics["risk_level"],
                     "objects_count": metrics["objects_count"],
@@ -188,6 +191,7 @@ class DashboardView(APIView):
                 "id": obj.id,
                 "name": obj.name,
                 "external_id": obj.external_id,
+                "territory_name": obj.territory.name_ru if obj.territory_id else None,
                 "risk_score": score,
                 "risk_level": level,
                 "paid_total": round(paid, 2),

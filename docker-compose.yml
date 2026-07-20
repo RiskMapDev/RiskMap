@@ -35,5 +35,26 @@ services:
       redis:
         condition: service_started
 
+  # Собирает React и выкладывает статику в общий том, затем завершается.
+  frontend:
+    build: ./frontend
+    volumes:
+      - frontend_build:/out
+
+  # Единая точка входа: раздаёт фронтенд и проксирует /api/ + /admin/.
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - frontend_build:/usr/share/nginx/html:ro
+    depends_on:
+      frontend:
+        condition: service_completed_successfully
+      web:
+        condition: service_started
+
 volumes:
   postgres_data:
+  frontend_build:

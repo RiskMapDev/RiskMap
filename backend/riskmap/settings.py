@@ -1,3 +1,4 @@
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -21,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "rest_framework",
     "rest_framework_gis",
+    "corsheaders",
     "accounts",
     "territories",
 ]
@@ -29,6 +31,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -80,14 +83,35 @@ TIME_ZONE = "Asia/Almaty"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+# НЕ "/static/": этот префикс занят статикой React-сборки, которую отдаёт
+# nginx. Django-статику (админка) уводим на отдельный префикс.
+STATIC_URL = "django-static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
 
+# Фронтенд живёт на другом origin/порту (3000 напрямую, 80 через nginx).
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=["http://localhost:3000", "http://localhost", "http://127.0.0.1:3000"],
+)
+
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    # Чтение открыто (карта и дашборд работают без логина), запись — только
+    # авторизованным. Роли из accounts.User (ТЗ раздел 5) — задел под
+    # разграничение прав по ролям.
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
 }
