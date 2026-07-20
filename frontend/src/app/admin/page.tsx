@@ -1,19 +1,19 @@
-﻿import { Settings } from "lucide-react";
+import { AdminScreen } from "@/components/admin/AdminScreen";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
 
 export const metadata = { title: "Администрирование — Карта рисков" };
 
+/**
+ * Экран «Администрирование».
+ *
+ * Страница серверная, содержимое клиентское: активная вкладка хранится в
+ * адресе и переключается без навигации, а данные вкладок зависят от прав
+ * пользователя, чей токен живёт в браузере.
+ */
 export default function Page() {
   return (
     <AppShell>
-      <PageHeader title="Администрирование системы" subtitle="Пользователи, справочники, критерии риска, журнал действий" />
-      <EmptyState
-        icon={Settings}
-        title="Разделы администрирования в разработке"
-        description=""
-      />
+      <AdminScreen />
     </AppShell>
   );
 }

@@ -19,6 +19,14 @@ from app.db.models.access import (
     role_permissions,
 )
 from app.db.models.budget import BudgetFact, BudgetMonthlyMetric, BudgetProgram
+from app.db.models.graph import (
+    EntityRelation,
+    GraphNode,
+    NodeType,
+    RelationConfidence,
+    RelationDirection,
+    RelationType,
+)
 from app.db.models.infrastructure import (
     ConstructionExpertiseObject,
     PppProject,
@@ -76,11 +84,14 @@ __all__ = [
     "ContractAddition",
     "Customer",
     "DataQualityIssue",
+    "EntityRelation",
+    "GraphNode",
     "Identifier",
     "ImportJob",
     "ImportStatus",
     "IssueSeverity",
     "Lot",
+    "NodeType",
     "Organization",
     "OrganizationPersonRole",
     "Permission",
@@ -91,6 +102,9 @@ __all__ = [
     "ProjectEntity",
     "ProjectEntityKind",
     "ProjectParticipant",
+    "RelationConfidence",
+    "RelationDirection",
+    "RelationType",
     "Role",
     "RoleCode",
     "SavedView",

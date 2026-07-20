@@ -1,19 +1,20 @@
-﻿import { Database } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { ImportWizard } from "@/components/import/ImportWizard";
 
 export const metadata = { title: "Импорт данных — Карта рисков" };
 
+/**
+ * Экран «Данные (импорт)».
+ *
+ * Страница серверная и пустая: весь мастер клиентский, потому что три его шага
+ * связаны состоянием загруженного файла и происходят без навигации. Данные для
+ * первого шага он запрашивает сам — их состав зависит от прав пользователя,
+ * а токен живёт в браузере.
+ */
 export default function Page() {
   return (
     <AppShell>
-      <PageHeader title="Загрузка и импорт данных" subtitle="Мастер загрузки в 3 шага" />
-      <EmptyState
-        icon={Database}
-        title="Мастер импорта в разработке"
-        description="Импортёры слоёв работают из командной строки; интерфейс мастера подключается следующим этапом."
-      />
+      <ImportWizard />
     </AppShell>
   );
 }

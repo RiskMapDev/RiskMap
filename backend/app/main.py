@@ -99,6 +99,7 @@ def create_app() -> FastAPI:
         return response
 
     from app.api.dashboard_routes import router as dashboard_router
+    from app.api.graph_routes import router as graph_router
     from app.api.object_detail_routes import router as object_detail_router
     from app.api.object_routes import router as object_router
     from app.api.report_routes import router as report_router
@@ -110,6 +111,7 @@ def create_app() -> FastAPI:
     # Карточка объекта подключается после списка: её путь
     # /objects/{type}/{id} более специфичен и не должен перехватывать /objects.
     app.include_router(object_detail_router, prefix=settings.api_prefix)
+    app.include_router(graph_router, prefix=settings.api_prefix)
     app.include_router(report_router, prefix=settings.api_prefix)
 
     # Маршруты доступа. Префикс версии задан настройкой: ломающие изменения API
