@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 /*
+  Стиль MapLibre подключается глобально, а не импортом внутри компонента
+  карты. React 19 трактует таблицу стилей, импортированную в компоненте, как
+  ресурс и держит ближайшую границу Suspense в заглушке, пока стиль не
+  загрузится. На странице карты это подвешивало экран навсегда.
+*/
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/*
   Токены оформления ИАС «Интерактивная карта рисков».
 
   Две темы. Светлая — для аналитических и административных экранов, тёмная —
@@ -92,8 +100,13 @@
   /* Геометрия */
   --radius: 0.5rem;
   --radius-lg: 0.75rem;
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-  --shadow-panel: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+  /*
+    Имена намеренно не `--shadow-*`: под этим префиксом Tailwind заводит
+    собственное пространство утилит, и совпадение имён приводит к путанице.
+    Утилиты `shadow-card` и `shadow-panel` объявлены ниже, в блоке @theme.
+  */
+  --elevation-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --elevation-panel: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -2px rgb(15 23 42 / 0.05);
 }
 
 [data-theme="dark"] {
@@ -139,8 +152,8 @@
   --risk-none-bg: #131d2f;
   --risk-none-border: #64748b;
 
-  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.25);
-  --shadow-panel: 0 4px 12px -2px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.3);
+  --elevation-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --elevation-panel: 0 4px 12px -2px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.3);
 }
 
 @theme inline {
@@ -200,6 +213,15 @@
   --radius-card: var(--radius);
   --radius-panel: var(--radius-lg);
 
+  /*
+    Тени объявляются здесь, а не только в :root. Переменная в :root сама по
+    себе не создаёт утилиту Tailwind: класс `shadow-card` без этой строки
+    остаётся неизвестным, из-за чего ломается генерация CSS страницы, стиль
+    не загружается, и React бесконечно держит границу Suspense в заглушке.
+  */
+  --shadow-card: var(--elevation-card);
+  --shadow-panel: var(--elevation-panel);
+
   /* Шрифты только системные: развёртывание в закрытом контуре не должно
      зависеть от внешних CDN. */
   --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -236,6 +258,30 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+  Значки переключателя темы. Оба всегда есть в разметке, видимость решает CSS
+  по атрибуту темы: так разметка сервера и клиента совпадает побайтово и не
+  нужно ни состояние, ни эффект.
+
+  Обе иконки занимают одну ячейку сетки, поэтому кнопка не меняет размер.
+*/
+.theme-icon-light,
+.theme-icon-dark {
+  grid-area: 1 / 1;
+}
+
+.theme-icon-dark {
+  display: none;
+}
+
+[data-theme="dark"] .theme-icon-light {
+  display: none;
+}
+
+[data-theme="dark"] .theme-icon-dark {
+  display: block;
 }
 
 /* Класс для скрытия визуально, но не от скринридера */

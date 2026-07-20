@@ -90,10 +90,15 @@ def verify_password(password: str, password_hash: str) -> bool:
     неверный пароль для вызывающего кода — одно и то же событие «вход не
     удался». Различать их в ответе API нельзя, иначе ответ начнёт рассказывать
     о состоянии учётной записи.
+
+    `UnicodeEncodeError` в этом списке не случаен: argon2 кодирует строку хеша
+    в ASCII, и любое значение с кириллицей — то есть любой мусор, попавший в
+    колонку по ошибке, — уронил бы проверку исключением вместо честного отказа.
+    Форма входа не должна отвечать пятисоткой на испорченную строку в базе.
     """
     try:
         return _hasher.verify(password_hash, password)
-    except (VerifyMismatchError, VerificationError, InvalidHashError):
+    except (VerifyMismatchError, VerificationError, InvalidHashError, UnicodeEncodeError):
         return False
 
 
@@ -122,7 +127,7 @@ def password_needs_rehash(password_hash: str) -> bool:
     """Нужно ли перехешировать пароль под текущие параметры Argon2id."""
     try:
         return _hasher.check_needs_rehash(password_hash)
-    except InvalidHashError:
+    except (InvalidHashError, UnicodeEncodeError, ValueError):
         # Нераспознанный хеш — точно устаревший формат, его надо заменить.
         return True
 

@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type MapGeoJSONFeature } from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+/*
+  Стиль MapLibre подключён глобально в `app/globals.css`, а не здесь.
+  React 19 считает импортированную в компоненте таблицу стилей ресурсом и
+  приостанавливает ближайшую границу Suspense до её загрузки. На странице
+  карты это приводило к тому, что заглушка «Загрузка карты…» не сменялась
+  никогда: дерево отрисовывалось в скрытом контейнере, эффекты не
+  запускались, запросы к API не уходили.
+*/
 
 import {
   ALMATY_OBLAST_VIEW,
@@ -76,6 +83,22 @@ export function MapView({
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /*
+    Поддержку WebGL проверяем ДО попытки создать карту, а не ловим исключение
+    из конструктора. Так отказ становится обычным состоянием отрисовки, а не
+    записью состояния прямо в теле эффекта, которая вызывает каскад
+    перерисовок. Проверка ленивая — выполняется один раз и только в браузере.
+  */
+  const [webglAvailable] = useState<boolean>(() => {
+    if (typeof document === "undefined") return true;
+    try {
+      const probe = document.createElement("canvas");
+      return Boolean(probe.getContext("webgl2") ?? probe.getContext("webgl"));
+    } catch {
+      return false;
+    }
+  });
+
   // Колбэки держим в ref: иначе смена обработчика пересоздавала бы карту,
   // а вместе с ней терялись бы масштаб и положение, выбранные пользователем.
   const onSelectRef = useRef(onSelect);
@@ -86,27 +109,18 @@ export function MapView({
   }, [onSelect, onHover]);
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current || !webglAvailable) return;
 
     const background = readCssVariable("--bg", "#0b1220");
 
-    let map: maplibregl.Map;
-    try {
-      map = new maplibregl.Map({
-        container: containerRef.current,
-        style: MAP_STYLE_URL ?? createBaseStyle(background),
-        center: ALMATY_OBLAST_VIEW.center,
-        zoom: ALMATY_OBLAST_VIEW.zoom,
-        maxBounds: KAZAKHSTAN_BOUNDS,
-        attributionControl: false,
-      });
-    } catch (error) {
-      // Инициализация падает, например, когда WebGL недоступен. Показать
-      // пустой прямоугольник вместо карты — худшее, что можно сделать:
-      // пользователь решит, что данных нет.
-      setFailed(error instanceof Error ? error.message : "карта недоступна");
-      return;
-    }
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: MAP_STYLE_URL ?? createBaseStyle(background),
+      center: ALMATY_OBLAST_VIEW.center,
+      zoom: ALMATY_OBLAST_VIEW.zoom,
+      maxBounds: KAZAKHSTAN_BOUNDS,
+      attributionControl: false,
+    });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -123,7 +137,7 @@ export function MapView({
       mapRef.current = null;
       setReady(false);
     };
-  }, []);
+  }, [webglAvailable]);
 
   // Данные и слои
   useEffect(() => {
@@ -266,14 +280,18 @@ export function MapView({
     if (selectedCode) zoomToSelection();
   }, [selectedCode, zoomToSelection]);
 
-  if (failed) {
+  if (!webglAvailable || failed) {
+    const reason = webglAvailable
+      ? failed
+      : "браузер не поддерживает WebGL, без которого карта не рисуется";
+
     return (
       <div
         role="alert"
         className="flex h-full flex-col items-center justify-center gap-2 bg-surface-muted p-6 text-center"
       >
         <p className="text-sm font-medium text-text">Карта не загрузилась</p>
-        <p className="max-w-md text-sm text-text-muted">{failed}</p>
+        <p className="max-w-md text-sm text-text-muted">{reason}</p>
         <p className="max-w-md text-xs text-text-subtle">
           Данные доступны в режиме «Списком» — переключитесь, чтобы продолжить работу.
         </p>

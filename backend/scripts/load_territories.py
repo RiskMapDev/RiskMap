@@ -89,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
             report = load_territories(
                 session, data_dir=data_dir, source_dir=source_dir, dry_run=args.dry_run
             )
-    except Exception as error:  # noqa: BLE001 — CLI обязан объяснить отказ, а не отдать трейс
+    # CLI обязан объяснить отказ по-человечески, а не отдать трейс: сообщения
+    # про несовпавший SHA-256 или пропавший файл адресованы оператору импорта.
+    except Exception as error:
         print(f"Импорт не выполнен: {error}", file=sys.stderr)
         return 2
 

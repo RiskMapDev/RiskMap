@@ -1,19 +1,21 @@
-﻿import { Map } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { MapScreen } from "@/components/map/MapScreen";
 
-export const metadata = { title: "Карта рисков — Карта рисков" };
+export const metadata = { title: "Карта — Карта рисков" };
 
-export default function Page() {
+export default function MapPage() {
+  /*
+    Ни `Suspense`, ни `connection()` здесь больше нет.
+
+    Граница Suspense требовалась из-за `useSearchParams` в экране карты, и
+    именно она подвешивала страницу: дерево отрисовывалось в скрытом
+    контейнере, эффекты не запускались, запросы к API не уходили. Экран карты
+    теперь читает адрес напрямую, границы ожидания не нужно, и страница
+    остаётся статической — данные она всё равно получает запросом к API.
+  */
   return (
-    <AppShell>
-      <PageHeader title="Карта" subtitle="Алматинская область и районы" />
-      <EmptyState
-        icon={Map}
-        title="Карта ещё не подключена"
-        description="Границы выгружены из OpenStreetMap и лежат в data/boundaries, но слой карты подключается после загрузки данных в базу."
-      />
+    <AppShell bleed>
+      <MapScreen />
     </AppShell>
   );
 }

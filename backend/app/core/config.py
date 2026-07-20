@@ -70,7 +70,17 @@ class Settings(BaseSettings):
     login_lockout_minutes: int = 15
     """Блокировка после серии неудачных входов — требование ТЗ по безопасности."""
 
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origins: list[str] = Field(
+        # `localhost` и `127.0.0.1` — разные источники с точки зрения браузера,
+        # и разрешение одного не действует на другой. Оба нужны, потому что
+        # dev-сервер и прод-сборка запускаются по-разному и на разных портах.
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ]
+    )
 
     # --- API -----------------------------------------------------------------
 

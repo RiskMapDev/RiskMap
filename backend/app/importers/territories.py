@@ -605,9 +605,13 @@ def check_population_totals(rows: list[PopulationRow]) -> dict[str, Any]:
     settlement_mismatches: list[str] = []
     for row in rows:
         male, female, total = row.values["male"], row.values["female"], row.values["total"]
-        if male is not None and female is not None and total is not None:
-            if male + female != total:
-                gender_mismatches.append(f"{row.source_row_ref} {row.raw_name}")
+        if (
+            male is not None
+            and female is not None
+            and total is not None
+            and male + female != total
+        ):
+            gender_mismatches.append(f"{row.source_row_ref} {row.raw_name}")
         for part_a, part_b, whole in _URBAN_RURAL_TRIPLES:
             a, b, w = row.values[part_a], row.values[part_b], row.values[whole]
             if a is not None and b is not None and w is not None and a + b != w:
@@ -789,7 +793,9 @@ class LoadReport:
         return sum(self.territories_by_level.values())
 
     def summary_ru(self) -> str:
-        levels = ", ".join(f"{level}: {count}" for level, count in self.territories_by_level.items())
+        levels = ", ".join(
+            f"{level}: {count}" for level, count in self.territories_by_level.items()
+        )
         kinds = ", ".join(f"{kind}: {count}" for kind, count in self.aliases_by_kind.items())
         prefix = "СУХОЙ ПРОГОН — ничего не записано\n" if self.dry_run else ""
         return (
@@ -1110,8 +1116,20 @@ class TerritoryLoader:
         validity_note = row[1]
         area_km2 = float(row[2])
         centroid_inside = bool(row[3])
+        is_empty = bool(row[4])
 
         self.report.geometries_written += 1
+        if is_empty:
+            # ST_MakeValid способна вернуть линию или точку, если полигон
+            # выродился. После ST_CollectionExtract(…, 3) от такой геометрии не
+            # остаётся ничего, и territory окажется без границы — молча этого
+            # допускать нельзя.
+            self._issue(
+                IssueSeverity.ERROR,
+                "geometry_empty_after_repair",
+                f"{territory.code}: после исправления геометрия пуста — полигон выродился.",
+                source_row_ref=feature.source_row_ref,
+            )
         if not is_valid or validity_note:
             self.report.geometries_repaired += 1
             self._issue(

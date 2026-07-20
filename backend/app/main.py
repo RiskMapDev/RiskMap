@@ -14,12 +14,27 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.api.auth_routes import router as auth_router
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.session import get_engine
 
 logger = logging.getLogger("riskmap")
 
 REQUEST_ID_HEADER = "X-Request-ID"
+
+
+def _database_host(settings: Settings) -> str:
+    """Хост базы для стартовой записи в лог.
+
+    `PostgresDsn` в pydantic 2 многохостовый, и атрибута `.host` у него нет —
+    обращение к нему роняло запуск приложения целиком, потому что это первое,
+    что делает lifespan. Пароль сюда не попадает: в лог уходит только хост и
+    порт, а не строка подключения.
+    """
+    hosts = settings.database_url.hosts()
+    if not hosts:
+        return "не указан"
+    first = hosts[0]
+    return f"{first.get('host') or '?'}:{first.get('port') or '?'}"
 
 
 @asynccontextmanager
@@ -28,7 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(
         "Запуск в режиме %s, БД %s",
         settings.environment,
-        settings.database_url.host,
+        _database_host(settings),
     )
     yield
     get_engine().dispose()

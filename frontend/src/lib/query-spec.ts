@@ -137,15 +137,6 @@ const PARAM_NAMES: Record<keyof QuerySpec, string> = {
   pageSize: "page_size",
 };
 
-const LIST_KEYS = [
-  "territoryCodes",
-  "objectTypes",
-  "layers",
-  "industries",
-  "statuses",
-  "riskLevels",
-] as const satisfies readonly (keyof QuerySpec)[];
-
 function sameList(a: readonly unknown[], b: readonly unknown[]): boolean {
   if (a.length !== b.length) return false;
   const left = [...a].map(String).sort();
