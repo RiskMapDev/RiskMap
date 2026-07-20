@@ -122,6 +122,27 @@ class TestObratimostVUrl:
         spec = QuerySpec.from_query_params({"territory_codes": "talgarskiy,iliyskiy"})
         assert spec.territory_codes == ["talgarskiy", "iliyskiy"]
 
+    def test_ne_peredannyy_parametr_beret_umolchanie(self) -> None:
+        """`None` означает «параметр не передан», а не «выбрано пусто».
+
+        Веб-фреймворк передаёт неуказанные параметры запроса как `None`.
+        Если трактовать это как пустой список, обычный запрос без фильтров
+        превращается в заведомо пустую выборку — ровно это и случилось на
+        живом API: список объектов отвечал ошибкой на запрос без фильтров.
+        """
+        spec = QuerySpec.from_query_params(
+            {"page": 1, "risk_levels": None, "object_types": None, "search": None}
+        )
+
+        assert set(spec.risk_levels) == set(RiskLevel)
+        assert spec.object_types == []
+        assert spec.search is None
+
+    def test_yavno_pustaya_stroka_oznachaet_vybrano_pusto(self) -> None:
+        """А вот пустая строка — именно «пользователь снял все значения»."""
+        spec = QuerySpec.from_query_params({"object_types": ""})
+        assert spec.object_types == []
+
     def test_lishnie_parametry_ignoriruyutsya_pri_razbore(self) -> None:
         """В адресной строке бывает мусор от аналитики — он не должен ронять разбор."""
         spec = QuerySpec.from_query_params({"utm_source": "mail", "page": 2})

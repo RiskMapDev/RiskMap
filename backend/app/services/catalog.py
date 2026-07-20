@@ -380,6 +380,19 @@ def list_objects(
     stmt = _sorted(stmt, spec, unified)
     rows = session.execute(stmt.offset(spec.offset).limit(spec.page_size)).mappings().all()
 
+    def as_float(value: object) -> float | None:
+        """Привести число к float.
+
+        Слои хранят балл по-разному: где-то `Numeric`, где-то `float`.
+        `Numeric` сериализуется в JSON строкой, и клиент получал бы для
+        одного и того же поля то `85.727`, то `"85.727"` — в зависимости от
+        того, из какого слоя пришёл объект. Приведение здесь, а не в
+        обработчике, потому что тип обязан быть единым уже в самой карточке.
+        """
+        if value is None:
+            return None
+        return float(value)  # type: ignore[arg-type]
+
     cards = [
         ObjectCard(
             object_type=ObjectType(row["object_type"]),
@@ -390,10 +403,10 @@ def list_objects(
             territory_name=row["territory_name"],
             amount=row["amount"],
             amount_unit=row["amount_unit"],
-            risk_score=row["risk_score"],
+            risk_score=as_float(row["risk_score"]),
             risk_level=RiskLevel(row["risk_level"]),
             risk_is_preliminary=bool(row["risk_is_preliminary"]),
-            risk_completeness=row["risk_completeness"],
+            risk_completeness=as_float(row["risk_completeness"]),
             status=row["status"],
             source_layer=row["source_layer"],
             data_as_of=None,

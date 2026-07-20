@@ -225,8 +225,18 @@ class QuerySpec(BaseModel):
         for key, raw in params.items():
             if key not in cls.model_fields:
                 continue
+
+            if raw is None:
+                # Параметр не передан — берётся значение по умолчанию.
+                # Это НЕ то же самое, что переданная пустая строка: пустая
+                # строка означает «пользователь снял все значения» и даёт
+                # пустую выборку, а отсутствие параметра — «фильтр не тронут».
+                # Смешать их значит превратить обычный запрос без фильтров в
+                # заведомо пустой результат.
+                continue
+
             if key in list_fields:
-                if raw == "" or raw is None:
+                if raw == "":
                     prepared[key] = []
                 elif isinstance(raw, str):
                     prepared[key] = [p.strip() for p in raw.split(",") if p.strip()]
