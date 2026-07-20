@@ -105,21 +105,13 @@ export function ObjectsPanel({
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg">
       <div className="shrink-0 border-b border-border-base bg-surface px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-text-muted">
-            {state === "loading" ? (
-              /* Пока считаем — не показываем число. Ложный ноль запрещён ТЗ. */
-              <span className="text-text-subtle">Идёт загрузка…</span>
-            ) : (
-              <>
-                Найдено{" "}
-                <span className="font-semibold tabular-nums text-text">
-                  {(data?.page.total ?? 0).toLocaleString("ru-RU")}
-                </span>
-              </>
-            )}
-          </p>
-
+        {/*
+          Счётчик найденного здесь не дублируется: его показывает сам
+          `ResultList`, причём со склонением («2 807 объектов»). Два счётчика
+          на одном экране — не просто шум: при расхождении пользователь не
+          знает, какому верить.
+        */}
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <SortControl
             sort={spec.sort}
             order={spec.order}

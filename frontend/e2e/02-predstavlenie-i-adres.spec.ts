@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { signIn } from "./helpers/auth";
+import { apiContext, fetchObjects, formatCount, loginApi } from "./helpers/api";
 
 /**
  * Сценарий 2 приёмки: «Списком | На карте» сохраняет выборку и адрес,
@@ -91,22 +92,30 @@ test.describe("Сценарий 2. Переключение представле
     await expect(page.getByRole("radio", { name: "На карте" })).toBeChecked();
   });
 
-  test.fixme(
-    "режим «Списком» показывает выборку списком",
-    async () => {
-      /*
-        НЕ РЕАЛИЗОВАНО В ПРИЛОЖЕНИИ.
+  test("режим «Списком» показывает выборку списком", async ({ page }) => {
+    /*
+      Проверяется не наличие `view=list` в адресе — такая проверка проходила
+      бы и при полностью нерабочем списке, — а то, что на экране появились
+      карточки объектов и число найденного совпало с ответом API.
+    */
+    await signIn(page, "analyst");
 
-        Компоненты списка написаны и покрыты модульными тестами
-        (`src/components/list/ResultList.tsx`, `ResultCard.tsx`, `SortControl.tsx`),
-        но ни на один экран не подключены: `MapScreen` держит состояние `view`
-        и рисует переключатель, а в разметку всегда выводит карту — ветки для
-        `view === "list"` в компоненте нет. Проверить нечего: при `view=list`
-        на экране остаётся та же карта.
+    // Ожидаемое число берётся у того же API, который питает экран: захардкодить
+    // его значило бы проверять снимок данных, а не работу списка.
+    const api = await apiContext();
+    const token = await loginApi(api, "analyst");
+    const expected = (await fetchObjects(api, token, { page_size: "1" })).page.total;
 
-        Тест намеренно не написан «мягко» — проверка вида «адрес содержит
-        view=list» проходила бы, создавая впечатление работающего списка.
-      */
-    },
-  );
+    await page.goto("/map?view=list");
+
+    const counter = page.getByText(/Найдено/);
+    await expect(counter).toBeVisible({ timeout: 15_000 });
+    await expect(counter).toContainText(formatCount(expected));
+
+    // Карточки объектов, а не пустая разметка списка.
+    await expect(page.locator("article").first()).toBeVisible();
+
+    // Карта в этом режиме не рисуется: экран отдан списку целиком.
+    await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0);
+  });
 });
