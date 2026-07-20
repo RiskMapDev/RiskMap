@@ -449,10 +449,16 @@ def evaluate(
     level = spec.level_for(score)
     is_preliminary = False
 
+    # Примечание о нехватке полноты хранится отдельно от остальных, потому что
+    # жёсткое переопределение ниже может его отменить. Если сложить его в общий
+    # список, в карточке окажутся одновременно «критический» и «уровень серый» —
+    # пользователь увидит два взаимоисключающих утверждения о своём объекте.
+    completeness_note = ""
+
     if spec.min_completeness is not None and completeness < spec.min_completeness:
         level = RiskLevel.UNKNOWN
         is_preliminary = True
-        notes.append(
+        completeness_note = (
             f"полнота {completeness:.0%} ниже порога {spec.min_completeness:.0%} — "
             f"уровень серый, балл предварительный"
         )
@@ -469,7 +475,7 @@ def evaluate(
         level=level,
         factors=tuple(factors),
         is_preliminary=is_preliminary,
-        notes=tuple(notes),
+        notes=(*notes, completeness_note) if completeness_note else tuple(notes),
     )
 
     if spec.override is not None:
@@ -478,12 +484,15 @@ def evaluate(
             forced_level, reason = decision
             from dataclasses import replace
 
+            # Примечание о серой полноте отбрасывается: уровень больше не серый,
+            # и балл больше не предварительный. Сам факт низкой полноты никуда
+            # не девается — он виден в `completeness` и в разделе «не измерено».
             result = replace(
                 result,
                 level=forced_level,
                 override_applied=reason,
                 is_preliminary=False,
-                notes=(*result.notes, f"жёсткое переопределение уровня: {reason}"),
+                notes=(*notes, f"жёсткое переопределение уровня: {reason}"),
             )
 
     return result

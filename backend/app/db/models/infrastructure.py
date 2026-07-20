@@ -162,6 +162,14 @@ class ProjectEntity(Base, TimestampMixin, ProvenanceMixin, RiskAssessmentMixin):
             "OR (risk_completeness >= 0 AND risk_completeness <= 1)",
             name="ck_project_entity_completeness_range",
         ),
+        # Районной привязки у проектов ГЧП нет ни в одном из пяти исходных
+        # реестров, поэтому «район» для них — заведомо выдуманная точность.
+        # Ограничение живёт на уровне базы, потому что документация и значение
+        # по умолчанию в конструкторе обходятся массовой вставкой.
+        CheckConstraint(
+            "kind <> 'ppp_project' OR territory_precision = 'region'",
+            name="ck_ppp_project_territory_is_region",
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -259,6 +267,22 @@ class PppProject(ProjectEntity):
     __mapper_args__: dict[str, Any] = {  # noqa: RUF012
         "polymorphic_identity": ProjectEntityKind.PPP_PROJECT,
     }
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Точность территории у проектов ГЧП всегда «область».
+
+        Раньше это было записано только в документации, и строка, вставленная
+        без явного указания, получала «none» — то есть выглядела как объект без
+        территории вовсе. Разница существенна: «известна только область» и
+        «территория неизвестна» по-разному отвечают на вопрос, можно ли
+        показывать объект на районной карте.
+
+        Значение по умолчанию задаётся здесь, а жёстко держится ограничением
+        `ck_ppp_project_territory_is_region` на уровне базы: массовая вставка
+        мимо конструктора Python не должна обходить правило.
+        """
+        kwargs.setdefault("territory_precision", TerritoryPrecision.REGION)
+        super().__init__(**kwargs)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("project_entities.id", ondelete="CASCADE"), primary_key=True
