@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.api.auth_routes import router as auth_router
 from app.core.config import get_settings
 from app.db.session import get_engine
 
@@ -81,6 +82,14 @@ def create_app() -> FastAPI:
             extra={"request_id": request_id, "duration_ms": elapsed_ms},
         )
         return response
+
+    from app.api.territory_routes import router as territory_router
+
+    app.include_router(territory_router, prefix=settings.api_prefix)
+
+    # Маршруты доступа. Префикс версии задан настройкой: ломающие изменения API
+    # должны выражаться сменой версии, а не правкой путей по месту.
+    app.include_router(auth_router, prefix=settings.api_prefix)
 
     @app.get("/health", tags=["служебные"], summary="Живо ли приложение")
     def health() -> dict[str, str]:
