@@ -57,11 +57,20 @@ class ProvenanceMixin:
     полугодовой давности. Поэтому поля разведены.
     """
 
+    # `use_alter` разрывает цикл в графе таблиц. Территории несут происхождение
+    # и потому ссылаются на задание импорта; задание ссылается на пользователя,
+    # запустившего его; пользователь ограничен территорией. Ни одну из трёх
+    # связей нельзя убрать по существу, поэтому ограничение навешивается
+    # отдельным ALTER после создания таблиц, а не встраивается в CREATE TABLE.
     source_dataset_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("source_datasets.id", ondelete="SET NULL"), index=True
+        UUID(as_uuid=True),
+        ForeignKey("source_datasets.id", ondelete="SET NULL", use_alter=True),
+        index=True,
     )
     import_job_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("import_jobs.id", ondelete="SET NULL"), index=True
+        UUID(as_uuid=True),
+        ForeignKey("import_jobs.id", ondelete="SET NULL", use_alter=True),
+        index=True,
     )
     source_row_ref: Mapped[str | None] = mapped_column(
         String(255),
