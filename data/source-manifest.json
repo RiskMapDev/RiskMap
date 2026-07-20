@@ -1,0 +1,147 @@
+{
+  "source_dir": "C:\\Users\\erbot\\Downloads\\ДЭР",
+  "generated_at": "2026-07-20T15:27:36.664499+00:00",
+  "file_count": 20,
+  "files": [
+    {
+      "name": "geo-boundaries-kz-master.zip",
+      "normalized_name": "geo-boundaries-kz-master.zip",
+      "size_bytes": 1254955,
+      "sha256": "454e6c9b99079ffd7b3aa7bf5f91f653ec118aa5ec2ad4e067fb52cc3c9a8727",
+      "modified_at": "2026-07-20T14:34:01.773268+00:00"
+    },
+    {
+      "name": "kz.json",
+      "normalized_name": "kz.json",
+      "size_bytes": 2913845,
+      "sha256": "8b97242b4e35680b4fad1cb062d2d5ca00a0d4bfb862dfbf249a3a856a8bae29",
+      "modified_at": "2026-07-19T12:32:07.731087+00:00"
+    },
+    {
+      "name": "kz_1.json",
+      "normalized_name": "kz_1.json",
+      "size_bytes": 314451,
+      "sha256": "77f6d51fe665a0545a7823f34de12a0d4b121924c9896f0e19eb5f7bd35c1f78",
+      "modified_at": "2026-07-19T12:32:05.514517+00:00"
+    },
+    {
+      "name": "kz_2.json",
+      "normalized_name": "kz_2.json",
+      "size_bytes": 922498,
+      "sha256": "9d0845d7e4389b3d2891cdb9fa3a364b80722a0833b7fd6f11b46c007629270f",
+      "modified_at": "2026-07-19T12:32:06.964844+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-01-29.jpg",
+      "normalized_name": "photo_2026-07-19_16-01-29.jpg",
+      "size_bytes": 71568,
+      "sha256": "878adf11f88b0a536777b881220f87644e7695923c92cbd7a10270c64e4d59e2",
+      "modified_at": "2026-07-19T11:01:29.985435+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-01-33.jpg",
+      "normalized_name": "photo_2026-07-19_16-01-33.jpg",
+      "size_bytes": 74345,
+      "sha256": "bbadfa11366e7020d5e0107e0001d6701b79ec5c4ef2a95870a451bf436935ce",
+      "modified_at": "2026-07-19T11:01:33.448061+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-01-36.jpg",
+      "normalized_name": "photo_2026-07-19_16-01-36.jpg",
+      "size_bytes": 11367,
+      "sha256": "d502a64d2ac6e8c3dd50302ea665efc6000212cffdc26fb67a27eaeafc3eb736",
+      "modified_at": "2026-07-19T11:01:36.014662+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-01-37.jpg",
+      "normalized_name": "photo_2026-07-19_16-01-37.jpg",
+      "size_bytes": 56366,
+      "sha256": "ed27af3c5efc398657055fb81ac5f0abb1b274efd75fdb60f68edf9450843cfc",
+      "modified_at": "2026-07-19T11:01:37.701106+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-01-39.jpg",
+      "normalized_name": "photo_2026-07-19_16-01-39.jpg",
+      "size_bytes": 71921,
+      "sha256": "f59bc28b844a86f22dc16c0d51defde9677b4ba7143fdc9040a9bff4fee6e49d",
+      "modified_at": "2026-07-19T11:01:39.882139+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-01-42.jpg",
+      "normalized_name": "photo_2026-07-19_16-01-42.jpg",
+      "size_bytes": 53990,
+      "sha256": "64b15e4eab4e7ca73f00810a87388d29b40dd511477464f43188fadf7c11fcd8",
+      "modified_at": "2026-07-19T11:01:42.312479+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-02-22.jpg",
+      "normalized_name": "photo_2026-07-19_16-02-22.jpg",
+      "size_bytes": 53122,
+      "sha256": "2c3fc6b72a18f9996dc603c6acde0a120afbb3374d02506c4be93eb47ccdb147",
+      "modified_at": "2026-07-19T11:02:22.914298+00:00"
+    },
+    {
+      "name": "photo_2026-07-19_16-02-24.jpg",
+      "normalized_name": "photo_2026-07-19_16-02-24.jpg",
+      "size_bytes": 74388,
+      "sha256": "de04c333343b2af25952b633e2a9a79fdc13bec8867af5dd705e70e172ad1b78",
+      "modified_at": "2026-07-19T11:02:24.571499+00:00"
+    },
+    {
+      "name": "Административно_территориальный_слой.docx",
+      "normalized_name": "административно_территориальный_слой.docx",
+      "size_bytes": 412130,
+      "sha256": "1280f97fff739c10770dbd2bbcdb9bcd7f64518971315ef2151b2844a6e6e96b",
+      "modified_at": "2026-07-15T16:16:42.410158+00:00"
+    },
+    {
+      "name": "Риск_субсидии_Алматинская.xlsx",
+      "normalized_name": "риск_субсидии_алматинская.xlsx",
+      "size_bytes": 4255928,
+      "sha256": "6494b5f440053127b1f41c04e100b5f188432db8b2c7a4725d6f5cda595cb0e9",
+      "modified_at": "2026-07-15T16:15:02.363040+00:00"
+    },
+    {
+      "name": "Слой_8.7_организации_риски_v1.xlsx",
+      "normalized_name": "слой_8.7_организации_риски_v1.xlsx",
+      "size_bytes": 313391,
+      "sha256": "8aff0627816f47f25752cad769629e1c942c3551a3e2172eec31ef9fe6095bbe",
+      "modified_at": "2026-07-19T11:00:03.861778+00:00"
+    },
+    {
+      "name": "Слой_8_3_бюджетных_рисков_КЗ_2025 (1).xlsx",
+      "normalized_name": "слой_8_3_бюджетных_рисков_кз_2025 (1).xlsx",
+      "size_bytes": 10761195,
+      "sha256": "5f7fafbdfd8fb69c53055c974f111bc6f2446e66e8a5e23883c15d50cf187301",
+      "modified_at": "2026-07-19T10:52:03.131645+00:00"
+    },
+    {
+      "name": "Слой_8_4_госзакупки_риски_v1.xlsx",
+      "normalized_name": "слой_8_4_госзакупки_риски_v1.xlsx",
+      "size_bytes": 877422,
+      "sha256": "d1e0ebcf9b7283cefdcbbaf7ce5529385cbd88f392c1995fc4049b7ea8e34421",
+      "modified_at": "2026-07-19T10:45:18.562225+00:00"
+    },
+    {
+      "name": "Слой_8_6_инфраструктурные_проекты_риски_v1.xlsx",
+      "normalized_name": "слой_8_6_инфраструктурные_проекты_риски_v1.xlsx",
+      "size_bytes": 1952072,
+      "sha256": "a860ffb1433b1b27023320d73c27d022aef3b6be6a5f55c9900caefdcb69ffdb",
+      "modified_at": "2026-07-19T10:26:22.868623+00:00"
+    },
+    {
+      "name": "ТЗ Интерактивная карта рисков.docx",
+      "normalized_name": "тз интерактивная карта рисков.docx",
+      "size_bytes": 52167,
+      "sha256": "1039812e104f71fef7b4f3a86cfa5936299a7e5b5ecb996381991f851b11e9f2",
+      "modified_at": "2026-07-19T10:51:29.649397+00:00"
+    },
+    {
+      "name": "Численность_населения_Алматинской_области.xlsx",
+      "normalized_name": "численность_населения_алматинской_области.xlsx",
+      "size_bytes": 11223,
+      "sha256": "31fab2f06193d0f14dc4d165a3112dc858d0bbad3352ba371e49751378e3879b",
+      "modified_at": "2026-07-15T16:04:49.981047+00:00"
+    }
+  ]
+}

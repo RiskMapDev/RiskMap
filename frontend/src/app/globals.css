@@ -1,0 +1,252 @@
+@import "tailwindcss";
+
+/*
+  Токены оформления ИАС «Интерактивная карта рисков».
+
+  Две темы. Светлая — для аналитических и административных экранов, тёмная —
+  для карты (тёмная подложка, на которой цветные полигоны читаются лучше).
+  Переключатель глобальный: атрибут data-theme на <html>.
+
+  Цвет НИКОГДА не является единственным носителем смысла (WCAG 2.1 AA, п. 1.4.1):
+  у каждого уровня риска есть текстовая подпись, иконка и — на карте — паттерн
+  заливки. Токены --risk-*-pattern задают штриховку для полигонов.
+*/
+
+:root {
+  color-scheme: light;
+
+  /* Поверхности */
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  /* Текст */
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --text-inverse: #f8fafc;
+
+  /* Акцент */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-fg: #ffffff;
+  --accent-soft: #eff6ff;
+
+  /* Сайдбар — тёмный в обеих темах, это якорь оболочки */
+  --sidebar-bg: #0f2744;
+  --sidebar-fg: #cbd5e1;
+  --sidebar-fg-muted: #64748b;
+  --sidebar-active-bg: #1d4ed8;
+  --sidebar-active-fg: #ffffff;
+  --sidebar-hover-bg: #16324f;
+
+  /*
+    Уровни риска. Значения -text рассчитаны на размещение на светлой
+    поверхности (--surface) и проверены на контраст ≥ 4.5:1 скриптом
+    scripts/check-contrast.mjs.
+  */
+  --risk-low: #16a34a;
+  --risk-low-text: #15803d;
+  --risk-low-bg: #f0fdf4;
+  --risk-low-border: #16a34a;
+
+  --risk-medium: #ca8a04;
+  --risk-medium-text: #a16207;
+  --risk-medium-bg: #fefce8;
+  /* Янтарный светел по природе: на белом граница берётся на тон темнее
+     заливки, иначе не набирается 3:1 по критерию 1.4.11. */
+  --risk-medium-border: #a16207;
+
+  --risk-high: #dc2626;
+  --risk-high-text: #b91c1c;
+  --risk-high-bg: #fef2f2;
+  --risk-high-border: #dc2626;
+
+  --risk-critical: #7f1d1d;
+  --risk-critical-text: #7f1d1d;
+  --risk-critical-bg: #fef2f2;
+  --risk-critical-border: #991b1b;
+
+  /* «Нет данных» — намеренно нейтральный, но не бледнее остальных:
+     отсутствие данных должно быть заметно, а не спрятано. */
+  --risk-none: #64748b;
+  --risk-none-text: #475569;
+  --risk-none-bg: #f8fafc;
+  --risk-none-border: #64748b;
+
+  /* Заливка полигонов на карте */
+  --risk-low-fill: #22c55e;
+  --risk-medium-fill: #eab308;
+  --risk-high-fill: #ef4444;
+  --risk-critical-fill: #991b1b;
+  --risk-none-fill: #94a3b8;
+
+  /* Статусы */
+  --ok: #16a34a;
+  --warn: #ca8a04;
+  --danger: #dc2626;
+
+  /* Геометрия */
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-panel: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0b1220;
+  --surface: #111c30;
+  --surface-muted: #0e1728;
+  --surface-hover: #16233a;
+  --border: #1e2d47;
+  --border-strong: #2c3f5e;
+
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --text-inverse: #0f172a;
+
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-fg: #00152b;
+  --accent-soft: #12243f;
+
+  /* На тёмном фоне светлее и насыщеннее, иначе уровни сливаются */
+  --risk-low-text: #4ade80;
+  --risk-low-bg: #0d2818;
+  --risk-low-border: #16a34a;
+
+  --risk-medium-text: #facc15;
+  --risk-medium-bg: #2a2109;
+  --risk-medium-border: #ca8a04;
+
+  --risk-high-text: #f87171;
+  --risk-high-bg: #2d1214;
+  --risk-high-border: #dc2626;
+
+  /* Критический на тёмном фоне отличается от высокого не оттенком, а
+     насыщенностью и обязательной штриховкой полигона. */
+  --risk-critical-text: #fca5a5;
+  --risk-critical-bg: #450a0a;
+  --risk-critical-border: #dc2626;
+
+  --risk-none-text: #94a3b8;
+  --risk-none-bg: #131d2f;
+  --risk-none-border: #64748b;
+
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 1px 3px 0 rgb(0 0 0 / 0.25);
+  --shadow-panel: 0 4px 12px -2px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.3);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-hover: var(--surface-hover);
+  --color-border-base: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-fg-muted: var(--sidebar-fg-muted);
+  --color-sidebar-active-bg: var(--sidebar-active-bg);
+  --color-sidebar-active-fg: var(--sidebar-active-fg);
+  --color-sidebar-hover-bg: var(--sidebar-hover-bg);
+
+  --color-risk-low: var(--risk-low);
+  --color-risk-low-text: var(--risk-low-text);
+  --color-risk-low-bg: var(--risk-low-bg);
+  --color-risk-low-border: var(--risk-low-border);
+
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-medium-text: var(--risk-medium-text);
+  --color-risk-medium-bg: var(--risk-medium-bg);
+  --color-risk-medium-border: var(--risk-medium-border);
+
+  --color-risk-high: var(--risk-high);
+  --color-risk-high-text: var(--risk-high-text);
+  --color-risk-high-bg: var(--risk-high-bg);
+  --color-risk-high-border: var(--risk-high-border);
+
+  --color-risk-critical: var(--risk-critical);
+  --color-risk-critical-text: var(--risk-critical-text);
+  --color-risk-critical-bg: var(--risk-critical-bg);
+  --color-risk-critical-border: var(--risk-critical-border);
+
+  --color-risk-none: var(--risk-none);
+  --color-risk-none-text: var(--risk-none-text);
+  --color-risk-none-bg: var(--risk-none-bg);
+  --color-risk-none-border: var(--risk-none-border);
+
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+
+  --radius-card: var(--radius);
+  --radius-panel: var(--radius-lg);
+
+  /* Шрифты только системные: развёртывание в закрытом контуре не должно
+     зависеть от внешних CDN. */
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo,
+    Consolas, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Видимый фокус обязателен: навигация с клавиатуры — требование ТЗ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Уважать системную настройку «меньше движения» */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Класс для скрытия визуально, но не от скринридера */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

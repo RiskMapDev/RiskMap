@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+playwright-report/
+test-results/
+.playwright/
+
+# Секреты и локальная конфигурация
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Локальные данные, которые не версионируются
+data/local/
+data/cache/
+*.log
+
+# Артефакты сборки отчётов
+exports/
+
+# ОС и редакторы
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
