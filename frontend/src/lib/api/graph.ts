@@ -153,12 +153,25 @@ export function fetchGraphStats(token: string | null, signal?: AbortSignal): Pro
   return request<GraphStats>("/graph/stats", token, signal);
 }
 
+/** Пустой `query` — весь перечень узлов страницами, в том же порядке. */
 export function searchGraphNodes(
   query: string,
   token: string | null,
   signal?: AbortSignal,
-): Promise<{ items: GraphNodePayload[]; query: string; min_query_length: number }> {
-  const params = new URLSearchParams({ q: query, limit: "12" });
+  limit = 12,
+  offset = 0,
+): Promise<{
+  items: GraphNodePayload[];
+  query: string;
+  total: number;
+  offset: number;
+  min_query_length: number;
+}> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit),
+    offset: String(offset),
+  });
   return request(`/graph/search?${params.toString()}`, token, signal);
 }
 

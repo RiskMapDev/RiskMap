@@ -88,28 +88,38 @@ def graph_search(
     scope: ScopeDep,
     user: CurrentUser,
     context: RequestCtx,
-    q: Annotated[str, Query(min_length=1, max_length=255, description="Наименование или ФИО")],
+    q: Annotated[str, Query(max_length=255, description="Наименование или ФИО")] = "",
     node_types: Annotated[str | None, Query(description="Через запятую")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
-    """Узлы, чья подпись содержит строку запроса.
+    """Узлы, чья подпись содержит строку запроса; пустой запрос — все узлы.
 
     Поиск идёт только по наименованию и ФИО. По идентификатору не ищем: строка
     запроса оседает в журнале и в адресной строке, и поиск по ИИН превратил бы
     их в хранилище персональных данных.
     """
+    types = _split(node_types)
     nodes = graph.search_nodes(
         session,
         q,
         allowed_territory_ids=scope.allowed_ids,
-        node_types=_split(node_types),
+        node_types=types,
         limit=limit,
+        offset=offset,
         user=user,
         context=context,
     )
     return {
         "items": [node.to_dict() for node in nodes],
         "query": q,
+        "total": graph.count_nodes(
+            session,
+            q,
+            allowed_territory_ids=scope.allowed_ids,
+            node_types=types,
+        ),
+        "offset": offset,
         "min_query_length": graph.MIN_QUERY_LENGTH,
         "scope_restricted": scope.allowed_ids is not None,
     }

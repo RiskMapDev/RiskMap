@@ -56,7 +56,12 @@ class TestNastroyki:
 
     def test_dva_vyzova_dayut_raznye_sekrety(self) -> None:
         """Сгенерированный по умолчанию секрет не должен быть предсказуемым."""
-        assert Settings(environment="dev").jwt_secret != Settings(environment="dev").jwt_secret
+        # jwt_secret="" явно: иначе тест читает секрет из локального .env
+        # и проверяет не генерацию, а содержимое чужого файла.
+        assert (
+            Settings(environment="dev", jwt_secret="").jwt_secret
+            != Settings(environment="dev", jwt_secret="").jwt_secret
+        )
 
 
 @pytest.mark.integration

@@ -329,10 +329,16 @@ def search_nodes(
     allowed_territory_ids: Collection[uuid.UUID] | None = None,
     node_types: Iterable[str] | None = None,
     limit: int = 20,
+    offset: int = 0,
     user: User,
     context: RequestContext | None = None,
 ) -> list[NodeView]:
     """Найти узлы по наименованию или ФИО — точка входа в граф.
+
+    Пустой запрос — не ошибка, а «покажи всех»: витрина перелистывается
+    страницами в том же порядке, что и результаты поиска. Это не выдача графа
+    целиком (ТЗ 20): отдаётся страница узлов без единой связи между ними, а
+    связи по-прежнему только через `neighborhood` вокруг названного узла.
 
     Поиск идёт **только** по метке узла. По идентификатору искать нельзя:
     строка запроса попадает в журнал доступа и в адресную строку, и поиск по
@@ -343,27 +349,65 @@ def search_nodes(
     много, первым должно оказаться то, ради чего в граф вообще заходят.
     """
     normalized = query.strip()
-    if len(normalized) < MIN_QUERY_LENGTH:
+    if normalized and len(normalized) < MIN_QUERY_LENGTH:
         return []
 
-    stmt = select(GraphNode).where(GraphNode.label.ilike(f"%{normalized}%"))
-
-    types = [str(item) for item in (node_types or []) if item]
-    if types:
-        stmt = stmt.where(GraphNode.node_type.in_(types))
-
-    stmt = _apply_scope(stmt, GraphNode.territory_id, allowed_territory_ids)
+    stmt = _search_query(normalized, node_types, allowed_territory_ids)
 
     rows = (
         session.execute(
-            stmt.order_by(_risk_order(GraphNode.risk_level), GraphNode.degree.desc()).limit(
-                max(1, min(limit, 100))
+            stmt.order_by(
+                _risk_order(GraphNode.risk_level),
+                GraphNode.degree.desc(),
+                # Устойчивый третий ключ: без него две страницы подряд могут
+                # показать один и тот же узел, а другой не показать вовсе —
+                # уровень риска и связность совпадают у тысяч записей.
+                GraphNode.node_key.asc(),
             )
+            .offset(max(0, offset))
+            .limit(max(1, min(limit, 100)))
         )
         .scalars()
         .all()
     )
     return _to_node_views(rows, user=user, session=session, context=context)
+
+
+def _search_query(
+    normalized: str,
+    node_types: Iterable[str] | None,
+    allowed_territory_ids: Collection[uuid.UUID] | None,
+) -> Select[Any]:
+    """Отбор без сортировки и постраничности — общий для выдачи и счёта."""
+    stmt = select(GraphNode)
+    if normalized:
+        stmt = stmt.where(GraphNode.label.ilike(f"%{normalized}%"))
+
+    types = [str(item) for item in (node_types or []) if item]
+    if types:
+        stmt = stmt.where(GraphNode.node_type.in_(types))
+
+    return _apply_scope(stmt, GraphNode.territory_id, allowed_territory_ids)
+
+
+def count_nodes(
+    session: Session,
+    query: str,
+    *,
+    allowed_territory_ids: Collection[uuid.UUID] | None = None,
+    node_types: Iterable[str] | None = None,
+) -> int:
+    """Сколько узлов подходит под отбор целиком.
+
+    Считается до постраничности: «показано 20 из 11 782» — единственное, что
+    отличает начало длинного списка от его конца.
+    """
+    normalized = query.strip()
+    if normalized and len(normalized) < MIN_QUERY_LENGTH:
+        return 0
+
+    stmt = _search_query(normalized, node_types, allowed_territory_ids)
+    return session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
 
 
 def _risk_order(column: Any) -> Any:

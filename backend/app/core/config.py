@@ -10,10 +10,10 @@ from __future__ import annotations
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, PostgresDsn, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -70,7 +70,9 @@ class Settings(BaseSettings):
     login_lockout_minutes: int = 15
     """Блокировка после серии неудачных входов — требование ТЗ по безопасности."""
 
-    cors_origins: list[str] = Field(
+    # NoDecode: без него pydantic ждёт от переменной окружения JSON, а
+    # `.env.example` и docs документируют список через запятую.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         # `localhost` и `127.0.0.1` — разные источники с точки зрения браузера,
         # и разрешение одного не действует на другой. Оба нужны, потому что
         # dev-сервер и прод-сборка запускаются по-разному и на разных портах.
@@ -90,6 +92,14 @@ class Settings(BaseSettings):
 
     max_page_size: int = 200
     """Верхняя граница server-side пагинации: клиент не может запросить всё разом."""
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        """`.env` документирует список через запятую — pydantic сам ждёт JSON."""
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     @field_validator("source_data_dir", "data_dir")
     @classmethod

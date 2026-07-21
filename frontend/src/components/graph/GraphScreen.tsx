@@ -44,7 +44,13 @@ interface NeighborhoodResult {
 interface SearchResult {
   query: string;
   items: GraphNodePayload[];
+  /** Сколько узлов подходит под отбор целиком — до постраничности. */
+  total: number;
 }
+
+/** Шаг «показать ещё» и потолок страницы, дальше которого сервер не отдаёт. */
+const PAGE_STEP = 20;
+const SERVER_PAGE_LIMIT = 100;
 
 /**
  * Экран графа взаимосвязей.
@@ -78,6 +84,7 @@ export function GraphScreen() {
 
   const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
+  const [shown, setShown] = useState(PAGE_STEP);
 
   // Всё ниже выведено из ответа, а не хранится: расхождение состояний
   // невозможно по построению.
@@ -88,10 +95,15 @@ export function GraphScreen() {
   const loading = view.node !== null && !fresh;
 
   const trimmedQuery = query.trim();
-  const candidates =
-    searchResult && searchResult.query === trimmedQuery && trimmedQuery.length >= 2
-      ? searchResult.items
-      : [];
+  /*
+    Один символ — единственный случай, когда список пуст: сервер такой запрос
+    не обслуживает. Пустая строка обслуживается и означает «все узлы»:
+    перечень доступен и до того, как человек придумал, что искать.
+  */
+  const listable = trimmedQuery.length !== 1;
+  const matches = searchResult && searchResult.query === trimmedQuery && listable;
+  const candidates = matches ? searchResult.items : [];
+  const candidatesTotal = matches ? searchResult.total : 0;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -163,18 +175,24 @@ export function GraphScreen() {
   */
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (trimmedQuery.length < 2) return;
+    if (!listable) return;
 
     const controller = new AbortController();
     timerRef.current = setTimeout(() => {
-      searchGraphNodes(trimmedQuery, token, controller.signal)
+      searchGraphNodes(trimmedQuery, token, controller.signal, shown)
         .then((payload) => {
           if (!controller.signal.aborted) {
-            setSearchResult({ query: trimmedQuery, items: payload.items });
+            setSearchResult({
+              query: trimmedQuery,
+              items: payload.items,
+              total: payload.total,
+            });
           }
         })
         .catch(() => {
-          if (!controller.signal.aborted) setSearchResult({ query: trimmedQuery, items: [] });
+          if (!controller.signal.aborted) {
+            setSearchResult({ query: trimmedQuery, items: [], total: 0 });
+          }
         });
     }, 300);
 
@@ -182,7 +200,11 @@ export function GraphScreen() {
       controller.abort();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [trimmedQuery, token]);
+  }, [trimmedQuery, token, listable, shown]);
+
+  // Новый запрос начинает список сначала: страница, доросшая до сотни на
+  // прошлом запросе, к новому отношения не имеет.
+  useEffect(() => setShown(PAGE_STEP), [trimmedQuery]);
 
   const openNode = useCallback(
     (node: GraphNodePayload) => {
@@ -241,10 +263,18 @@ export function GraphScreen() {
           </label>
 
           {candidates.length > 0 && (
-            <ul
-              aria-label="Найденные узлы"
-              className="max-h-56 divide-y divide-border-base overflow-y-auto rounded-panel border border-border-base bg-surface shadow-card"
-            >
+            <>
+              <p className="text-xs text-text-subtle">
+                {trimmedQuery
+                  ? `Найдено: ${candidatesTotal}.`
+                  : `Все узлы витрины: ${candidatesTotal}.`}{" "}
+                Показано {candidates.length}. Сортировка — по убыванию уровня риска,
+                затем по числу связей.
+              </p>
+              <ul
+                aria-label={trimmedQuery ? "Найденные узлы" : "Все узлы витрины"}
+                className="max-h-96 divide-y divide-border-base overflow-y-auto rounded-panel border border-border-base bg-surface shadow-card"
+              >
               {candidates.map((node) => (
                 <li key={node.key}>
                   <button
@@ -262,7 +292,21 @@ export function GraphScreen() {
                   </button>
                 </li>
               ))}
-            </ul>
+              </ul>
+
+              {candidates.length < candidatesTotal && (
+                <button
+                  type="button"
+                  onClick={() => setShown((value) => value + PAGE_STEP)}
+                  disabled={shown >= SERVER_PAGE_LIMIT}
+                  className="self-start rounded border border-border-base px-3 py-1 text-xs text-accent hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-text-subtle"
+                >
+                  {shown >= SERVER_PAGE_LIMIT
+                    ? "Дальше — уточните запрос или откройте список объектов"
+                    : "Показать ещё"}
+                </button>
+              )}
+            </>
           )}
 
           <div className="min-h-[28rem] flex-1">
@@ -280,8 +324,9 @@ export function GraphScreen() {
                 title="Выберите узел, чтобы построить окружение"
                 description={
                   "Граф не отдаётся целиком: сервер возвращает окружение одного " +
-                  "субъекта с ограничением глубины и числа узлов. Найдите " +
-                  "организацию, лицо, договор или программу в строке поиска выше."
+                  "субъекта с ограничением глубины и числа узлов. Выберите узел " +
+                  "в списке выше — он открыт без запроса и перелистывается — " +
+                  "или сузьте его поиском."
                 }
               />
             )}

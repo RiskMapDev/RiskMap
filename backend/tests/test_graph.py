@@ -646,6 +646,39 @@ class TestДоступПоHTTP:
         assert ответ.status_code == 200
         assert ответ.json()["items"] == []
 
+    def test_пустой_запрос_отдаёт_перечень_а_не_пусто(
+        self, graph_client: TestClient, make_user: UserFactory
+    ) -> None:
+        """Список узлов — вход в граф для того, кто ещё не знает, что искать."""
+        заголовки = _auth(_token(graph_client, make_user(RoleCode.ADMIN).login))
+        ответ = graph_client.get("/api/v1/graph/search?limit=5", headers=заголовки)
+        assert ответ.status_code == 200
+        тело = ответ.json()
+        assert тело["items"]
+        # Общее число считается до постраничности, иначе «показано 5 из 5»
+        # соврало бы о размере витрины.
+        assert тело["total"] > len(тело["items"])
+
+    def test_страницы_перечня_не_пересекаются(
+        self, graph_client: TestClient, make_user: UserFactory
+    ) -> None:
+        """Без устойчивого третьего ключа сортировки узлы дублируются и теряются.
+
+        Уровень риска и число связей совпадают у тысяч узлов, и порядок внутри
+        группы без явного ключа не определён — соседние страницы показали бы
+        одно и то же, а часть витрины не показали бы вовсе.
+        """
+        заголовки = _auth(_token(graph_client, make_user(RoleCode.ADMIN).login))
+        первая = graph_client.get("/api/v1/graph/search?limit=5", headers=заголовки).json()
+        вторая = graph_client.get(
+            "/api/v1/graph/search?limit=5&offset=5", headers=заголовки
+        ).json()
+
+        ключи_первой = {item["key"] for item in первая["items"]}
+        ключи_второй = {item["key"] for item in вторая["items"]}
+        assert ключи_первой and ключи_второй
+        assert not (ключи_первой & ключи_второй)
+
 
 class TestТерриториальнаяОбластьВидимости:
     def test_связи_без_территории_ограниченному_не_видны(
