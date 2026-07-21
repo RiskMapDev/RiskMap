@@ -51,6 +51,65 @@ describe("popup территории", () => {
   });
 });
 
+describe("распределение объектов по уровням", () => {
+  it("показывает, сколько объектов на каждом уровне", () => {
+    /*
+      Уровень территории — это худший её объект. Без разбивки пользователь не
+      отличит район, где критичны все, от района, где критичен один из
+      трёхсот, а это разные поводы для действий.
+    */
+    render(
+      <TerritoryPopup
+        territory={территория({
+          risk_level: "critical",
+          risk_counts: { low: 300, medium: 12, high: 0, critical: 1, unknown: 0 },
+          objects_total: 313,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Объектов слоя: 313")).toBeInTheDocument();
+    expect(screen.getByText("300")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  it("не показывает уровни, которых в территории нет", () => {
+    render(
+      <TerritoryPopup
+        territory={территория({
+          risk_counts: { low: 5, medium: 0, high: 0, critical: 0, unknown: 0 },
+          objects_total: 5,
+        })}
+      />,
+    );
+
+    // Строка «Критический: 0» создаёт впечатление проверенного отсутствия
+    // там, где просто нет таких объектов.
+    expect(screen.queryByText("Критический")).not.toBeInTheDocument();
+    expect(screen.getByText("Низкий")).toBeInTheDocument();
+  });
+
+  it("без слоя разбивка не показывается", () => {
+    render(<TerritoryPopup territory={территория()} />);
+
+    expect(screen.queryByText(/Объектов слоя/)).not.toBeInTheDocument();
+  });
+
+  it("территория без объектов не изображает пустую разбивку", () => {
+    render(
+      <TerritoryPopup
+        territory={территория({
+          risk_level: "unknown",
+          risk_counts: { low: 0, medium: 0, high: 0, critical: 0, unknown: 0 },
+          objects_total: 0,
+        })}
+      />,
+    );
+
+    expect(screen.queryByText(/Объектов слоя/)).not.toBeInTheDocument();
+  });
+});
+
 describe("отсутствие данных", () => {
   it("пишет «нет данных» вместо нуля", () => {
     // «0 чел.» и «нет данных» — разные утверждения. Подменять второе первым

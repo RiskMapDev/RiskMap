@@ -14,10 +14,12 @@ import {
   type ViewMode,
 } from "@/components/map/ViewSwitcher";
 import { ObjectsPanel } from "@/components/map/ObjectsPanel";
+import { RiskLegend } from "@/components/map/RiskLegend";
 import type { ListItem } from "@/lib/api/types";
 import {
   fetchLayers,
   fetchTerritoriesGeoJson,
+  type TerritoryLevel,
   type ThematicLayerInfo,
   type TerritoriesGeoJson,
 } from "@/lib/api/territories";
@@ -29,6 +31,24 @@ import {
 } from "@/lib/query-spec";
 
 export type MapLevel = "region" | "district";
+
+/**
+ * Слои, у которых есть оценка риска, — только ими можно красить полигоны.
+ *
+ * Административный слой и слой населения к риску отношения не имеют: покрасить
+ * по ним территорию значило бы выдать численность населения за уровень риска.
+ */
+const RISK_LAYERS = new Set([
+  "budget",
+  "procurement",
+  "subsidies",
+  "infrastructure_ppp",
+  "infrastructure_expertise",
+  "risk_summary",
+]);
+
+/** Слой по умолчанию: сводка есть на обоих уровнях карты. */
+const FALLBACK_LAYER = "risk_summary";
 
 const LEVEL_TITLES: Record<MapLevel, string> = {
   region: "области Казахстана",
@@ -214,6 +234,13 @@ export function MapScreen() {
   const [hovered, setHovered] = useState<TerritoryFeatureProperties | null>(null);
 
   /*
+    Заливка показывает один слой, а не сумму отмеченных: у полигона один цвет,
+    и наложить на него закупки поверх субсидий нельзя, не солгав о том, чей это
+    уровень риска. Поэтому выбор слоя — переключатель, а не набор флажков.
+  */
+  const [requestedLayer, setRequestedLayer] = useState<string>(FALLBACK_LAYER);
+
+  /*
     Панель фильтров выдвижная в обоих режимах. На референсе она перекрывает
     карту слева; в режиме списка ведёт себя так же, потому что фильтрует одну
     и ту же выборку — держать для неё второе место в разметке значило бы
@@ -229,32 +256,65 @@ export function MapScreen() {
   */
   const [result, setResult] = useState<{
     level: MapLevel;
+    requested: string;
     geojson: TerritoriesGeoJson | null;
     layers: ThematicLayerInfo[];
+    /** Слой, которым карта покрашена на самом деле. */
+    layer: string | null;
     error: string | null;
   } | null>(null);
 
-  const loading = result?.level !== level;
+  const loading = result?.level !== level || result?.requested !== requestedLayer;
   const geojson = loading ? null : (result?.geojson ?? null);
   const layers = loading ? [] : (result?.layers ?? []);
   const error = loading ? null : (result?.error ?? null);
+  const paintedLayer = loading ? null : (result?.layer ?? null);
 
   useEffect(() => {
     const controller = new AbortController();
 
     const apiLevel = level === "region" ? "region" : "district";
+    // Города областного значения запрашиваются вместе с районами: они того же
+    // порядка на карте, и без них на месте Конаева и Алатау остаётся пустота.
+    const levels: TerritoryLevel[] = level === "region" ? ["region"] : ["district", "city"];
     const parent = level === "district" ? "almaty-oblast" : undefined;
 
-    Promise.all([
-      fetchTerritoriesGeoJson(
-        { level: apiLevel, parent, zoom: level === "region" ? 4 : 7 },
-        controller.signal,
-      ),
-      fetchLayers(apiLevel, controller.signal),
-    ])
-      .then(([geo, layerInfo]) => {
+    /*
+      Каталог слоёв запрашивается первым, а границы — вторым, потому что выбор
+      слоя зависит от уровня: закупок нет на уровне республики, бюджета нет на
+      уровне района. Узнать, доступен ли выбранный слой, можно только из
+      каталога, поэтому запросы последовательны, а не параллельны.
+    */
+    fetchLayers(apiLevel, controller.signal)
+      .then(async (layerInfo) => {
+        const usable = layerInfo.filter(
+          (item) => item.available && RISK_LAYERS.has(item.code),
+        );
+        const chosen =
+          usable.find((item) => item.code === requestedLayer)?.code ??
+          usable.find((item) => item.code === FALLBACK_LAYER)?.code ??
+          usable[0]?.code ??
+          null;
+
+        const geo = await fetchTerritoriesGeoJson(
+          {
+            levels,
+            parent,
+            zoom: level === "region" ? 4 : 7,
+            layer: chosen ?? undefined,
+          },
+          controller.signal,
+        );
+
         if (controller.signal.aborted) return;
-        setResult({ level, geojson: geo, layers: layerInfo, error: null });
+        setResult({
+          level,
+          requested: requestedLayer,
+          geojson: geo,
+          layers: layerInfo,
+          layer: chosen,
+          error: null,
+        });
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
@@ -265,20 +325,24 @@ export function MapScreen() {
         */
         setResult({
           level,
+          requested: requestedLayer,
           geojson: null,
           layers: [],
+          layer: null,
           error: cause instanceof Error ? cause.message : "не удалось загрузить границы",
         });
       });
 
     return () => controller.abort();
-  }, [level]);
+  }, [level, requestedLayer]);
 
   // Города областного значения приходят отдельным уровнем, но на карте они
   // равноправны районам, поэтому склеиваются в один набор.
   const features = useMemo(() => geojson?.features ?? [], [geojson]);
 
   const availableLayers = layers.filter((layer) => layer.available);
+  const riskLayers = availableLayers.filter((layer) => RISK_LAYERS.has(layer.code));
+  const contextLayers = availableLayers.filter((layer) => !RISK_LAYERS.has(layer.code));
   const unavailableLayers = layers.filter(
     (layer) => !layer.available && layer.unavailability_reason,
   );
@@ -410,26 +474,59 @@ export function MapScreen() {
         </h2>
 
         <ul className="mt-3 space-y-2">
-          {availableLayers.map((layer) => (
+          {riskLayers.map((layer) => (
             <li key={layer.code} className="text-sm">
+              {/*
+                Примечание о покрытии вынесено за пределы `label` и связано с
+                переключателем через `aria-describedby`. Внутри подписи оно
+                становилось частью доступного имени, и скринридер зачитывал
+                название кнопки вместе с абзацем про Жетысускую область.
+              */}
               <label className="flex items-start gap-2">
                 <input
-                  type="checkbox"
-                  defaultChecked={layer.enabled_by_default}
+                  type="radio"
+                  name="risk-layer"
+                  value={layer.code}
+                  checked={paintedLayer === layer.code}
+                  onChange={() => setRequestedLayer(layer.code)}
+                  aria-describedby={layer.coverage_note ? `${layer.code}-note` : undefined}
                   className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]"
                 />
-                <span>
-                  <span className="text-text">{layer.title}</span>
-                  {layer.coverage_note && (
-                    <span className="mt-0.5 block text-xs text-text-subtle">
-                      {layer.coverage_note}
-                    </span>
-                  )}
-                </span>
+                <span className="text-text">{layer.title}</span>
               </label>
+              {layer.coverage_note && (
+                <p id={`${layer.code}-note`} className="ml-6 mt-0.5 text-xs text-text-subtle">
+                  {layer.coverage_note}
+                </p>
+              )}
             </li>
           ))}
         </ul>
+
+        <div className="mt-5 border-t border-border-base pt-4">
+          <RiskLegend coverage={geojson?.layer} />
+        </div>
+
+        {/*
+          Слои без оценки риска перечисляются отдельно и без переключателя:
+          заливка показывает риск, а численность населения или границы риском
+          не являются. Смешать их в один список значило бы предложить
+          покрасить карту по величине, которая уровнем риска не измеряется.
+        */}
+        {contextLayers.length > 0 && (
+          <div className="mt-5 border-t border-border-base pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Справочные слои
+            </h3>
+            <ul className="mt-2 space-y-2">
+              {contextLayers.map((layer) => (
+                <li key={layer.code} className="text-sm text-text-subtle">
+                  {layer.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/*
           Недоступные слои не прячутся, а перечисляются с причиной. Молча

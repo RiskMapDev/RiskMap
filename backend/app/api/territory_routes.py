@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.models.territory import TerritoryLevel
 from app.db.session import get_db
 from app.services import territories as service
-from app.services.layers import LAYERS, layers_for_level
+from app.services.layers import LAYERS, LAYERS_BY_CODE, layers_for_level
 
 router = APIRouter(prefix="/territories", tags=["территории"])
 
@@ -33,14 +33,29 @@ def territory_tree(session: Annotated[Session, Depends(get_db)]) -> list[dict[st
 @router.get("/geojson", summary="Границы территорий")
 def territories_geojson(
     session: Annotated[Session, Depends(get_db)],
-    level: Annotated[TerritoryLevel | None, Query()] = None,
+    level: Annotated[
+        list[TerritoryLevel] | None,
+        Query(description="Уровни иерархии. Параметр повторяемый: районы и города вместе"),
+    ] = None,
     parent: Annotated[str | None, Query()] = None,
     zoom: Annotated[
         float,
         Query(ge=0, le=22, description="Масштаб карты: от него зависит детализация контура"),
     ] = 7.0,
+    layer: Annotated[
+        str | None,
+        Query(description="Код тематического слоя: заливка считается по его оценкам риска"),
+    ] = None,
 ) -> dict[str, Any]:
-    return service.territories_geojson(session, level=level, parent_code=parent, zoom=zoom)
+    if layer is not None and layer not in LAYERS_BY_CODE:
+        known = ", ".join(sorted(LAYERS_BY_CODE))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Слой {layer!r} не описан. Есть: {known}",
+        )
+    return service.territories_geojson(
+        session, levels=level, parent_code=parent, zoom=zoom, layer=layer
+    )
 
 
 @router.get("/layers", summary="Тематические слои и их доступность по уровням")

@@ -39,6 +39,11 @@ export interface TerritoryFeatureProperties {
   risk_level?: RiskLevel;
   risk_score?: number | null;
   amount?: number | null;
+  /** Код слоя, по которому посчитан уровень. */
+  risk_layer?: string;
+  /** Распределение объектов территории по уровням — рядом с цветом. */
+  risk_counts?: Record<string, number>;
+  objects_total?: number;
 }
 
 interface MapViewProps {
@@ -50,6 +55,31 @@ interface MapViewProps {
   onSelect?: (code: string | null) => void;
   onHover?: (properties: TerritoryFeatureProperties | null) => void;
   loading?: boolean;
+}
+
+/**
+ * Свойства объекта карты в пригодном для React виде.
+ *
+ * MapLibre хранит свойства в плоском виде и отдаёт вложенные объекты строкой
+ * JSON. Без разбора распределение по уровням попало бы в подсказку как
+ * `"{\"low\":8}"`, поэтому оно восстанавливается здесь, а не у потребителя:
+ * иначе каждый новый потребитель свойств повторял бы этот разбор заново.
+ */
+function normalizeProperties(raw: unknown): TerritoryFeatureProperties {
+  const properties = { ...(raw as Record<string, unknown>) };
+  const counts = properties.risk_counts;
+
+  if (typeof counts === "string") {
+    try {
+      properties.risk_counts = JSON.parse(counts) as Record<string, number>;
+    } catch {
+      // Разбитый JSON — не повод ронять подсказку целиком: остальные поля
+      // территории по-прежнему верны, а распределение просто не покажется.
+      delete properties.risk_counts;
+    }
+  }
+
+  return properties as unknown as TerritoryFeatureProperties;
 }
 
 function readCssVariable(name: string, fallback: string): string {
@@ -230,7 +260,7 @@ export function MapView({
         map.setFeatureState({ source: SOURCE_ID, id: hovered }, { hover: true });
       }
 
-      onHoverRef.current?.(feature.properties as unknown as TerritoryFeatureProperties);
+      onHoverRef.current?.(normalizeProperties(feature.properties));
     });
 
     map.on("mouseleave", FILL_LAYER, () => {

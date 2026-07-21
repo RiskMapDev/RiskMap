@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -24,6 +25,8 @@ from app.db.models.territory import (
     TerritoryGeometry,
     TerritoryLevel,
 )
+from app.risk.core import RiskLevel
+from app.services.territory_risk import layer_coverage
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,15 +132,21 @@ def territory_properties(territory: Territory) -> dict[str, Any]:
 def territories_geojson(
     session: Session,
     *,
-    level: TerritoryLevel | None = None,
+    levels: Sequence[TerritoryLevel] | None = None,
     parent_code: str | None = None,
     zoom: float = 7.0,
+    layer: str | None = None,
 ) -> dict[str, Any]:
     """Границы территорий как FeatureCollection.
 
     Атрибуция лицензии кладётся в сам ответ, а не только в документацию:
     границы под ODbL нельзя показывать без указания авторства, и надёжнее
     отдавать его вместе с данными, чем надеяться, что клиент не забудет.
+
+    Если задан `layer`, к свойствам добавляется уровень риска территории по
+    этому слою и распределение объектов по уровням. Сводка по коллекции
+    сообщает, сколько объектов слоя вообще попало на карту: слой, показанный
+    наполовину, обязан выглядеть как показанный наполовину.
     """
     detail = geometry_for_zoom(zoom)
     geom_column = getattr(TerritoryGeometry, detail.column)
@@ -157,21 +166,41 @@ def territories_geojson(
         .where(Territory.is_current.is_(True))
     )
 
-    if level is not None:
-        stmt = stmt.where(Territory.level == level)
+    # Несколько уровней сразу, потому что города областного значения — это
+    # отдельный уровень иерархии, но на карте они равноправны районам и
+    # покрывают территорию вместе с ними. Запросить только районы значит
+    # оставить на карте дыры на месте Конаева и Алатау.
+    if levels:
+        stmt = stmt.where(Territory.level.in_(levels))
     if parent_code is not None:
         parent = session.scalar(select(Territory).where(Territory.code == parent_code))
         if parent is None:
             return {"type": "FeatureCollection", "features": [], "attribution": ""}
         stmt = stmt.where(Territory.parent_id == parent.id)
 
+    coverage = layer_coverage(session, layer) if layer else None
+
     features: list[dict[str, Any]] = []
     attributions: set[str] = set()
+    shown = 0
 
     for territory, geometry_json, centroid_json in session.execute(stmt).all():
         properties = territory_properties(territory)
         if centroid_json:
             properties["centroid"] = json.loads(centroid_json)
+
+        if coverage is not None:
+            risk = coverage.risk_for(territory.id)
+            shown += risk.total
+            properties["risk_level"] = risk.level.value
+            properties["risk_layer"] = layer
+            # Распределение отдаётся рядом с уровнем: цвет показывает худший
+            # объект, а понять, один он или половина района, можно только по
+            # разбивке.
+            properties["risk_counts"] = {
+                item.value: risk.counts.get(item, 0) for item in RiskLevel
+            }
+            properties["objects_total"] = risk.total
 
         features.append(
             {
@@ -186,12 +215,27 @@ def territories_geojson(
         if version.attribution_text:
             attributions.add(version.attribution_text)
 
-    return {
+    payload: dict[str, Any] = {
         "type": "FeatureCollection",
         "features": features,
         "attribution": " · ".join(sorted(attributions)),
         "geometry_detail": detail.description,
     }
+
+    if coverage is not None:
+        # Разница между «всего в слое» и «показано на карте» — это объекты без
+        # территории и объекты другого уровня привязки. Молчать о ней нельзя:
+        # карта, показывающая 57 % слоя, неотличима от полной, пока не назовёшь
+        # число.
+        payload["layer"] = {
+            "code": layer,
+            "objects_total": coverage.total,
+            "objects_shown": shown,
+            "objects_not_shown": coverage.total - shown,
+            "objects_without_territory": coverage.unplaced,
+        }
+
+    return payload
 
 
 def territory_tree(session: Session) -> list[dict[str, Any]]:

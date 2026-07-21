@@ -5,12 +5,25 @@ import type { TerritoryFeatureProperties } from "@/components/map/MapView";
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8100/api/v1";
 
+/** Сколько объектов слоя попало на карту, а сколько осталось за её пределами. */
+export interface LayerCoverageSummary {
+  code: string;
+  objects_total: number;
+  objects_shown: number;
+  /** Объекты другого уровня привязки или другого региона. */
+  objects_not_shown: number;
+  /** Объекты, у которых территории нет вовсе. */
+  objects_without_territory: number;
+}
+
 export interface TerritoriesGeoJson {
   type: "FeatureCollection";
   features: GeoJSON.Feature[];
   /** Обязательная атрибуция источника границ — приходит вместе с данными. */
   attribution: string;
   geometry_detail: string;
+  /** Есть только если запрошен тематический слой. */
+  layer?: LayerCoverageSummary;
 }
 
 export interface ThematicLayerInfo {
@@ -50,13 +63,21 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export function fetchTerritoriesGeoJson(
-  params: { level?: TerritoryLevel; parent?: string; zoom?: number },
+  params: {
+    /** Уровни запрашиваются вместе: города областного значения покрывают
+     *  территорию наравне с районами, и без них на карте остаются дыры. */
+    levels?: TerritoryLevel[];
+    parent?: string;
+    zoom?: number;
+    layer?: string;
+  },
   signal?: AbortSignal,
 ): Promise<TerritoriesGeoJson> {
   const query = new URLSearchParams();
-  if (params.level) query.set("level", params.level);
+  for (const level of params.levels ?? []) query.append("level", level);
   if (params.parent) query.set("parent", params.parent);
   if (params.zoom !== undefined) query.set("zoom", String(params.zoom));
+  if (params.layer) query.set("layer", params.layer);
 
   return request<TerritoriesGeoJson>(`/territories/geojson?${query.toString()}`, signal);
 }

@@ -173,9 +173,81 @@ test.describe("Сценарий 6. Карта и панель тематичес
       panel.getByText(`Тематические слои (${availableRegion.length} / ${regionLayers.length})`),
     ).toBeVisible();
 
-    // Бюджетный слой переехал в доступные — с чекбоксом, а не в списке причин.
+    /*
+      Бюджетный слой переехал в доступные — с переключателем, а не в списке
+      причин. Именно переключатель, а не флажок: заливка показывает один слой,
+      потому что у полигона один цвет, и совместить на нём закупки с
+      субсидиями нельзя, не солгав о том, чей это уровень риска.
+    */
     await expect(
-      panel.getByRole("checkbox").locator("xpath=ancestor::label").filter({ hasText: budget!.title }),
+      panel.getByRole("radio").locator("xpath=ancestor::label").filter({ hasText: budget!.title }),
     ).toHaveCount(1);
+  });
+
+  test("выбор слоя перекрашивает карту по уровню риска этого слоя", async ({ page }) => {
+    /*
+      Ради этого весь слой и существует. Проверяется не наличие переключателя,
+      а то, что после переключения в браузер приезжают границы с уровнями
+      риска выбранного слоя: карта, запросившая слой и не получившая оценок,
+      выглядела бы ровно так же, как работающая, — сплошной серой заливкой.
+    */
+    await signIn(page, "analyst");
+    await page.goto("/map?view=map");
+
+    const ответ = page.waitForResponse(
+      (response) =>
+        response.url().includes("/territories/geojson") &&
+        response.url().includes("layer=procurement"),
+    );
+
+    await page
+      .getByRole("radio", { name: "Государственные закупки", exact: true })
+      .check();
+
+    const данные = (await (await ответ).json()) as {
+      features: Array<{ properties: { name_ru: string; risk_level: string } }>;
+    };
+
+    const уровни = new Set(данные.features.map((f) => f.properties.risk_level));
+
+    // По закупкам районы расходятся: есть и критические, и неизмеренные.
+    // Один уровень на все районы означал бы, что заливка ни от чего не зависит.
+    expect(уровни.size, `все районы одного уровня: ${[...уровни]}`).toBeGreaterThan(1);
+    for (const уровень of уровни) {
+      expect(["low", "medium", "high", "critical", "unknown"]).toContain(уровень);
+    }
+
+    /*
+      Район, где договоров нет, обязан быть серым, а не зелёным. Зелёный
+      сказал бы «проверено, риск низкий» там, где не проверено ничего, — и
+      это ровно та подмена, которую ТЗ запрещает.
+    */
+    const пустые = данные.features.filter(
+      (f) => (f.properties as { objects_total?: number }).objects_total === 0,
+    );
+    expect(пустые.length, "в выборке нет района без договоров").toBeGreaterThan(0);
+    for (const район of пустые) {
+      expect(
+        район.properties.risk_level,
+        `${район.properties.name_ru} без договоров окрашен как измеренный`,
+      ).toBe("unknown");
+    }
+  });
+
+  test("легенда называет все пять уровней и долю показанных объектов", async ({ page }) => {
+    await signIn(page, "analyst");
+    await page.goto("/map?view=map");
+
+    const panel = page.locator("aside");
+    for (const уровень of ["Низкий", "Средний", "Высокий", "Критический", "Нет данных"]) {
+      await expect(panel.getByText(уровень, { exact: true }).first()).toBeVisible();
+    }
+
+    /*
+      Доля показанных объектов — не украшение. Слой экспертизы попадает на
+      районную карту на 7 %: без числа карта выглядит полной, и пользователь
+      сделает вывод обо всей совокупности по её двадцатой части.
+    */
+    await expect(panel.getByText(/На карте .* из .* объектов слоя/)).toBeVisible();
   });
 });

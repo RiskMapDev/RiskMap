@@ -26,6 +26,61 @@ function formatValue(value: number | null | undefined, unit: string): string {
   return `${nf.format(value)} ${unit}`;
 }
 
+const BREAKDOWN = [
+  { code: "critical", label: "Критический", token: "--risk-critical-fill" },
+  { code: "high", label: "Высокий", token: "--risk-high-fill" },
+  { code: "medium", label: "Средний", token: "--risk-medium-fill" },
+  { code: "low", label: "Низкий", token: "--risk-low-fill" },
+  { code: "unknown", label: "Нет данных", token: "--risk-none-fill" },
+] as const;
+
+/**
+ * Распределение объектов территории по уровням.
+ *
+ * Без него цвет полигона вводит в заблуждение: район красен и когда критичны
+ * все объекты, и когда критичен один из трёхсот. Уровень отвечает на вопрос
+ * «есть ли здесь проблема», разбивка — «насколько она распространена», и
+ * второй вопрос без первого не имеет смысла, а первый без второго опасен.
+ *
+ * Порядок от критического к низкому: читают сверху, а важное — сверху.
+ */
+function RiskBreakdown({
+  counts,
+  total,
+}: {
+  counts?: Record<string, number>;
+  total?: number;
+}) {
+  if (!counts || !total) return null;
+
+  const present = BREAKDOWN.filter((item) => (counts[item.code] ?? 0) > 0);
+  if (present.length === 0) return null;
+
+  return (
+    <div className="mt-3 border-t border-border-base pt-3">
+      <p className="text-[11px] text-text-muted">
+        Объектов слоя: {nf.format(total)}
+      </p>
+      <ul className="mt-1.5 space-y-1">
+        {present.map((item) => {
+          const count = counts[item.code] ?? 0;
+          return (
+            <li key={item.code} className="flex items-center gap-2 text-[11px]">
+              <span
+                aria-hidden="true"
+                className="size-2.5 shrink-0 rounded-sm"
+                style={{ backgroundColor: `var(${item.token})` }}
+              />
+              <span className="flex-1 text-text-muted">{item.label}</span>
+              <span className="tabular-nums text-text">{nf.format(count)}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * Всплывающая карточка территории.
  *
@@ -82,6 +137,8 @@ export function TerritoryPopup({ territory, onOpenCard, onZoom }: TerritoryPopup
           </dd>
         </div>
       </dl>
+
+      <RiskBreakdown counts={territory.risk_counts} total={territory.objects_total} />
 
       {territory.population_as_of && (
         <p className="mt-2 text-[11px] text-text-subtle">
