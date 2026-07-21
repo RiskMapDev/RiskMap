@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import { apiContext, auth, fetchObjects, loginApi, url } from "./helpers/api";
+import { signIn } from "./helpers/auth";
 
 /**
  * Сценарий 5 приёмки: карточка объекта с расшифровкой риска, включая раздел
@@ -168,23 +169,39 @@ test.describe("Сценарий 5. Карточка объекта и расши
     expect(card.territory.name, "не указана территория объекта").toBeTruthy();
   });
 
-  test.fixme(
-    "карточка объекта открывается из интерфейса кликом по объекту выборки",
-    async () => {
-      /*
-        НЕ РЕАЛИЗОВАНО В ПРИЛОЖЕНИИ.
+  test("карточка объекта открывается по адресу и объясняет оценку", async ({ page }) => {
+    /*
+      Проверяется не факт открытия страницы, а наличие расшифровки: балл без
+      объяснения — число, которому остаётся верить на слово. Раздел
+      «не измерено» обязателен именно потому, что он объясняет низкую полноту
+      и серый уровень.
 
-        Маршрута карточки объекта во фронтенде нет: в `src/app/` есть только
-        login, dashboard, map, import, reports, graph, admin. Компонент
-        `ResultCard` умеет отрисовать объект выборки, но ни он, ни `ResultList`
-        никуда не подключены, а `TerritoryPopup` содержит кнопку «Открыть
-        карточку» без обработчика — `MapScreen` не передаёт `onOpenCard`.
+      Взят договор 22333284: эталон книги — 67.1, уровень высокий.
+    */
+    await signIn(page, "analyst");
+    await page.goto("/objects/contract/22333284");
 
-        Открыть карточку через интерфейс невозможно, поэтому UI-теста нет.
-        Данные, которые карточка обязана показать, проверены выше через
-        `GET /api/v1/objects/{type}/{id}` — тот же источник, из которого экран
-        и будет их брать.
-      */
-    },
-  );
+    await expect(page.getByText("22333284").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Высокий").first()).toBeVisible();
+    await expect(page.getByText(/67[.,]1/).first()).toBeVisible();
+
+    // Расшифровка: и то, что измерено, и то, что нет.
+    await expect(page.getByText(/[Нн]е измерено/).first()).toBeVisible();
+  });
+
+  test("карточка объекта открывается кликом из списка", async ({ page }) => {
+    /*
+      Отдельно от предыдущей проверки: адрес карточки может работать, а
+      переход из списка — нет, и тогда пользователь до неё не доберётся.
+    */
+    await signIn(page, "analyst");
+    await page.goto("/map?view=list&object_types=contract");
+
+    const open = page.getByRole("button", { name: /Открыть карточку/ }).first();
+    await expect(open).toBeVisible({ timeout: 15_000 });
+    await open.click();
+
+    await page.waitForURL(/\/objects\/contract\//, { timeout: 15_000 });
+    await expect(page.getByText(/[Нн]е измерено/).first()).toBeVisible({ timeout: 15_000 });
+  });
 });

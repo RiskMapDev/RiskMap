@@ -4,6 +4,25 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ViewSwitcher, parseViewMode } from "@/components/map/ViewSwitcher";
 
+/**
+ * Задать ширину окна для теста.
+ *
+ * Сдвоенный режим существует только на широком экране, поэтому раскладка —
+ * такое же условие теста, как значение пропса, и задаётся явно.
+ */
+function withViewport(wide: boolean): void {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: wide,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
 describe("разбор режима из адреса", () => {
   it("известные режимы читаются", () => {
     expect(parseViewMode("map")).toBe("map");
@@ -45,7 +64,11 @@ describe("переключатель представления", () => {
     expect(onChange).toHaveBeenCalledWith("map");
   });
 
-  it("стрелка влево с первого режима уходит на последний", async () => {
+  it("на широком экране стрелка влево с первого режима уходит на сдвоенный", async () => {
+    // Раскладка — часть условий: сдвоенный режим существует только когда
+    // экран достаточно широк, поэтому она задаётся явно.
+    withViewport(true);
+
     const onChange = vi.fn();
     render(<ViewSwitcher value="list" onChange={onChange} />);
 
@@ -53,6 +76,26 @@ describe("переключатель представления", () => {
     await userEvent.keyboard("{ArrowLeft}");
 
     expect(onChange).toHaveBeenCalledWith("split");
+  });
+
+  it("на узком экране сдвоенного режима нет ни на экране, ни в обходе стрелками", async () => {
+    /*
+      Раньше он прятался классом `hidden lg:inline-flex`, но обе утилиты
+      задают `display`, и в собранном CSS побеждала вторая: на телефоне
+      кнопка оставалась видимой и фокусируемой. Теперь режим убирается из
+      набора, поэтому выбрать раскладку, которая не поместится, нельзя.
+    */
+    withViewport(false);
+
+    const onChange = vi.fn();
+    render(<ViewSwitcher value="list" onChange={onChange} />);
+
+    expect(screen.queryByRole("radio", { name: /Карта \+ список/ })).not.toBeInTheDocument();
+
+    await userEvent.tab();
+    await userEvent.keyboard("{ArrowLeft}");
+
+    expect(onChange).toHaveBeenCalledWith("map");
   });
 
   it("в обход клавишей Tab попадает только текущий вариант", () => {

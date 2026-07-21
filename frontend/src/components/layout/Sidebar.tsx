@@ -12,24 +12,44 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { usePermissions } from "@/lib/hooks/usePermissions";
+
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Право, без которого раздел бесполезен.
+   *
+   * Пункт без права виден всем: дашборд и карта доступны любому вошедшему.
+   */
+  requires?: string;
 }
 
 /** Состав и порядок пунктов заданы ТЗ и подтверждены всеми UI-референсами. */
 const NAV_ITEMS: readonly NavItem[] = [
-  { href: "/dashboard", label: "Дашборд", icon: BarChart3 },
-  { href: "/map", label: "Карта", icon: Map },
-  { href: "/import", label: "Данные (импорт)", icon: Database },
-  { href: "/reports", label: "Отчёты", icon: FileText },
-  { href: "/graph", label: "Граф связей", icon: Share2 },
-  { href: "/admin", label: "Администрирование", icon: Settings },
+  { href: "/dashboard", label: "Дашборд", icon: BarChart3, requires: "data.view" },
+  { href: "/map", label: "Карта", icon: Map, requires: "map.view" },
+  { href: "/import", label: "Данные (импорт)", icon: Database, requires: "data.import" },
+  { href: "/reports", label: "Отчёты", icon: FileText, requires: "report.generate" },
+  { href: "/graph", label: "Граф связей", icon: Share2, requires: "risk.view" },
+  { href: "/admin", label: "Администрирование", icon: Settings, requires: "users.manage" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const permissions = usePermissions();
+
+  /*
+    Пока права неизвестны, показываются все пункты. Прятать их на время
+    загрузки — значит заставить меню мигать при каждом переходе. А вот после
+    ответа сервера пункт без права убирается: вести пользователя в раздел,
+    где его встретит отказ, — плохой интерфейс, даже если данные при этом
+    защищены сервером.
+  */
+  const items = NAV_ITEMS.filter(
+    (item) => !item.requires || permissions === null || permissions.has(item.requires),
+  );
 
   return (
     <nav
@@ -51,7 +71,7 @@ export function Sidebar() {
       </p>
 
       <ul className="flex flex-1 flex-col gap-0.5 px-3">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           /*
             Точное совпадение либо вложенный маршрут: карточка объекта
             /objects/... должна подсвечивать тот раздел, из которого открыта,

@@ -1,22 +1,28 @@
 "use client";
 
-import { Bell, Search } from "lucide-react";
+import { Bell, LogOut, Search } from "lucide-react";
+
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { clearSession } from "@/lib/api/auth";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 
 interface TopbarProps {
   /** Действия, специфичные для экрана: «Фильтры», «Экспорт», «Обновить». */
   actions?: React.ReactNode;
   unreadCount?: number;
-  userName?: string;
-  userRole?: string;
 }
 
-export function Topbar({
-  actions,
-  unreadCount = 0,
-  userName = "Гость",
-  userRole = "Просмотр",
-}: TopbarProps) {
+export function Topbar({ actions, unreadCount = 0 }: TopbarProps) {
+  const user = useCurrentUser();
+
+  /*
+    Пока пользователь не прочитан — «Гость». Это не заглушка: до входа
+    пользователя действительно нет, и подписать панель чужим именем было бы
+    хуже, чем честно сказать, что сессия не начата.
+  */
+  const userName = user?.full_name ?? user?.login ?? "Гость";
+  const userRole = user?.role_title ?? "сессия не начата";
+
   const initials = userName
     .split(" ")
     .filter(Boolean)
@@ -89,6 +95,23 @@ export function Topbar({
             <span className="block text-xs text-text-muted">{userRole}</span>
           </span>
         </div>
+
+        {user && (
+          <button
+            type="button"
+            onClick={() => {
+              clearSession();
+              // Полная навигация, а не переход роутером: после выхода в памяти
+              // не должно остаться ни данных, ни загруженных экранов.
+              window.location.href = "/login";
+            }}
+            aria-label="Выйти из системы"
+            title="Выйти из системы"
+            className="grid size-9 place-items-center rounded-lg border border-border-base bg-surface text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+          >
+            <LogOut className="size-4.5" aria-hidden="true" />
+          </button>
+        )}
       </div>
     </header>
   );

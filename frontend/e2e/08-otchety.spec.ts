@@ -1,15 +1,22 @@
+import { stat } from "node:fs/promises";
+
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import { apiContext, auth, loginApi, url } from "./helpers/api";
 import { signIn } from "./helpers/auth";
 
+/** Размер сохранённого файла: пустой файл «скачивается» так же успешно. */
+async function readFileStats(path: string): Promise<{ size: number }> {
+  const info = await stat(path);
+  return { size: info.size };
+}
+
 /**
  * Сценарий 8 приёмки: отчёт формируется и выгружается файлом.
  *
- * Экрана отчётов в интерфейсе нет: `src/app/reports/page.tsx` показывает
- * заглушку «Шаблоны отчётов ещё не подключены» и ни одной кнопки. Сквозной
- * проверки «нажал — скачалось» поэтому не существует, она помечена `test.fixme`
- * ниже. Проверяется сама выгрузка через API — то, ради чего экран и делается.
+ * Проверяются обе стороны: выгрузка через API и настоящее скачивание с экрана.
+ * Ни одна из них не заменяет другую — API может отдавать правильный файл,
+ * который экран не умеет сохранить, и наоборот.
  *
  * Почему проверяются тип содержимого и размер, а не только код 200. Отчёт —
  * это файл, который пользователь откроет в Word или Excel. Ответ 200 с нулевым
@@ -149,35 +156,43 @@ test.describe("Сценарий 8. Формирование и выгрузка 
     ).not.toBe(0);
   });
 
-  test.fixme(
-    "отчёт формируется и скачивается через экран «Отчёты и экспорт»",
-    async () => {
-      /*
-        НЕ РЕАЛИЗОВАНО В ПРИЛОЖЕНИИ.
-
-        `src/app/reports/page.tsx` — заглушка: `EmptyState` с текстом
-        «Шаблоны отчётов ещё не подключены». Ни карточек шаблонов, ни выбора
-        формата, ни кнопки выгрузки на экране нет, обработчика скачивания в
-        `src/` тоже нет.
-
-        Когда экран появится, тест должен: открыть /reports, выбрать шаблон и
-        формат, поймать событие download, сверить `suggestedFilename` с
-        заголовком `Content-Disposition` и убедиться, что сохранённый файл не
-        пуст. Серверная часть, которую этот экран будет вызывать, проверена
-        выше и работает.
-      */
-    },
-  );
-
-  test("экран отчётов честно сообщает, что шаблоны не подключены", async ({ page }) => {
+  test("экран отчётов показывает восемь шаблонов", async ({ page }) => {
     /*
-      Пока раздела нет, он обязан говорить об этом словами. Пустой экран без
-      объяснения пользователь читает как поломку и заводит обращение.
+      Восемь шаблонов заданы ТЗ и подтверждены референсом. Проверяется их
+      число, а не «страница отрисовалась»: пропавший шаблон обнаружится
+      только счётом.
     */
     await signIn(page, "analyst");
     await page.goto("/reports");
 
-    await expect(page.getByRole("heading", { name: "Отчёты и экспорт" })).toBeVisible();
-    await expect(page.getByText("Шаблоны отчётов ещё не подключены")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Отчёты и экспорт/ })).toBeVisible();
+
+    const buttons = page.getByRole("button", { name: /Сформировать/ });
+    await expect(buttons).toHaveCount(8, { timeout: 15_000 });
+  });
+
+  test("отчёт формируется и скачивается через экран", async ({ page }) => {
+    /*
+      Проверяется настоящее скачивание, а не код ответа: отчёт — это файл,
+      который человек откроет. Пустой или битый файл вернулся бы с тем же
+      кодом 200, что и правильный.
+    */
+    await signIn(page, "analyst");
+    await page.goto("/reports");
+
+    const first = page.getByRole("button", { name: /Сформировать/ }).first();
+    await expect(first).toBeVisible({ timeout: 15_000 });
+
+    const download = page.waitForEvent("download", { timeout: 60_000 });
+    await first.click();
+    const file = await download;
+
+    const path = await file.path();
+    expect(path).toBeTruthy();
+
+    const { size } = await readFileStats(path!);
+    // Пустой файл — тоже «скачался». Порог отсекает этот случай.
+    expect(size).toBeGreaterThan(1000);
+    expect(file.suggestedFilename()).toMatch(/\.(docx|xlsx|pdf)$/);
   });
 });

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Info, Layers } from "lucide-react";
+import { Globe, Info, Layers, MapPin, SlidersHorizontal } from "lucide-react";
 
-import { Globe, MapPin } from "lucide-react";
+import { FilterPanel } from "@/components/filters/FilterPanel";
 
 import { MapView, type TerritoryFeatureProperties } from "@/components/map/MapView";
 import { TerritoryPopup } from "@/components/map/TerritoryPopup";
@@ -14,6 +14,7 @@ import {
   type ViewMode,
 } from "@/components/map/ViewSwitcher";
 import { ObjectsPanel } from "@/components/map/ObjectsPanel";
+import type { ListItem } from "@/lib/api/types";
 import {
   fetchLayers,
   fetchTerritoriesGeoJson,
@@ -105,6 +106,25 @@ function LevelSwitcher({
   );
 }
 
+/** Кнопка открытия панели фильтров. Отдельным компонентом ради читаемости разметки. */
+function FiltersButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-border-base px-3 py-1.5 text-xs transition-colors ${
+        open
+          ? "bg-accent font-medium text-accent-fg"
+          : "bg-surface text-text-muted hover:bg-surface-hover hover:text-text"
+      }`}
+    >
+      <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+      Фильтры
+    </button>
+  );
+}
+
 /**
  * Экран карты.
  *
@@ -167,9 +187,39 @@ export function MapScreen() {
     setSpec(next);
   }
 
+  /*
+    Переход к карточке объекта.
+
+    Идентификатор в списке имеет вид `тип:идентификатор` (см. `toListItem` в
+    `lib/api/objects.ts`), а адрес карточки — `/objects/тип/идентификатор`.
+    Разбор по первому двоеточию, а не `split(":")`: идентификаторы источников
+    сами содержат двоеточия, и разбиение по всем вхождениям потеряло бы хвост.
+
+    Навигация обычная, с переходом на страницу: карточка — отдельный экран, а
+    не панель внутри карты, и она должна открываться по ссылке, сохраняться в
+    закладках и возвращаться кнопкой «назад».
+  */
+  function openCard(item: ListItem) {
+    const separator = item.id.indexOf(":");
+    if (separator < 1) return;
+    const objectType = item.id.slice(0, separator);
+    const objectId = item.id.slice(separator + 1);
+    window.location.assign(
+      `/objects/${encodeURIComponent(objectType)}/${encodeURIComponent(objectId)}`,
+    );
+  }
+
   const [level, setLevel] = useState<MapLevel>("district");
   const [selected, setSelected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<TerritoryFeatureProperties | null>(null);
+
+  /*
+    Панель фильтров выдвижная в обоих режимах. На референсе она перекрывает
+    карту слева; в режиме списка ведёт себя так же, потому что фильтрует одну
+    и ту же выборку — держать для неё второе место в разметке значило бы
+    разводить два состояния одного фильтра.
+  */
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   /*
     Загруженные данные хранятся вместе с уровнем, для которого они получены.
@@ -245,6 +295,36 @@ export function MapScreen() {
       {/* Заголовок нужен скринридеру: без него страницу нечем назвать. */}
       <h1 className="sr-only">Карта рисков — {LEVEL_TITLES[level]}</h1>
 
+      {filtersOpen && (
+        <>
+          {/*
+            Подложка закрывает панель щелчком мимо неё. Без неё выдвижную
+            панель на телефоне можно закрыть только точным попаданием в
+            крестик.
+          */}
+          <button
+            type="button"
+            aria-label="Закрыть панель фильтров"
+            onClick={() => setFiltersOpen(false)}
+            className="absolute inset-0 z-20 bg-black/30 lg:hidden"
+          />
+          <div className="absolute inset-y-0 left-0 z-30 w-80 max-w-[85vw] overflow-y-auto border-r border-border-base bg-surface shadow-panel">
+            <FilterPanel
+              spec={spec}
+              onApply={(next) => {
+                changeSpec(next);
+                setFiltersOpen(false);
+              }}
+              onReset={() => {
+                changeSpec(DEFAULT_QUERY_SPEC);
+                setFiltersOpen(false);
+              }}
+              onClose={() => setFiltersOpen(false)}
+            />
+          </div>
+        </>
+      )}
+
       {/*
         Режим «Списком» отдаёт всю ширину списку, «Карта + список» делит её.
         Список и карта берут одну и ту же выборку, поэтому переключение
@@ -278,6 +358,7 @@ export function MapScreen() {
           <div className="absolute left-14 top-3 z-10 flex flex-wrap items-center gap-2">
             <ViewSwitcher value={view} onChange={changeView} />
             <LevelSwitcher level={level} onChange={setLevel} />
+            <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((v) => !v)} />
           </div>
 
           {hovered && (
@@ -302,11 +383,20 @@ export function MapScreen() {
               <div className="flex flex-wrap items-center gap-2">
                 <ViewSwitcher value={view} onChange={changeView} />
                 <LevelSwitcher level={level} onChange={setLevel} />
+                <FiltersButton
+                  open={filtersOpen}
+                  onToggle={() => setFiltersOpen((value) => !value)}
+                />
               </div>
             </div>
           )}
           <div className="min-h-0 flex-1">
-            <ObjectsPanel spec={spec} onSpecChange={changeSpec} selectedId={selected} />
+            <ObjectsPanel
+              spec={spec}
+              onSpecChange={changeSpec}
+              selectedId={selected}
+              onOpen={openCard}
+            />
           </div>
         </div>
       )}

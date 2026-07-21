@@ -71,7 +71,11 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=[REQUEST_ID_HEADER],
+        # Имя файла отчёта приходит в `Content-Disposition`. Без явного
+        # разрешения браузер прячет этот заголовок от межисточникового
+        # запроса, и клиенту приходится придумывать имя самому — кириллица
+        # при этом теряется.
+        expose_headers=[REQUEST_ID_HEADER, "Content-Disposition"],
     )
 
     @app.middleware("http")

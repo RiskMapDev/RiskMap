@@ -84,22 +84,41 @@ test.describe("Сценарий 3. Фильтр по уровню риска", (
     expect(url.searchParams.get("risk_levels")).toBe("high,critical");
   });
 
-  test.fixme(
-    "панель фильтров задаёт уровень риска и показывает чип над выборкой",
-    async () => {
-      /*
-        НЕ РЕАЛИЗОВАНО В ПРИЛОЖЕНИИ.
+  test("панель фильтров открывается и задаёт уровень риска", async ({ page }) => {
+    /*
+      Проверяется полный путь через интерфейс: открыть панель, снять лишние
+      уровни, применить — и увидеть, что выборка сузилась.
 
-        `FilterPanel` и `FilterChips` существуют в `src/components/filters/`,
-        но не смонтированы ни на одном экране — задать уровень риска через
-        интерфейс невозможно, снять чип тоже. Проверять нечего.
+      Число сверяется с ответом API на тот же фильтр: совпадение «сузилось на
+      сколько-то» ничего не доказывает, а вот совпадение с сервером доказывает,
+      что интерфейс и сервер понимают фильтр одинаково.
+    */
+    await signIn(page, "analyst");
+    await page.goto("/map?view=list");
 
-        Что должен делать этот тест, когда панель подключат: открыть панель,
-        снять уровни кроме «критический», убедиться, что в адресе появилось
-        `risk_levels=critical`, над выборкой — чип «Уровень риска: выбрано 1»,
-        число объектов совпало с `GET /objects?risk_levels=critical`, а
-        закрытие чипа вернуло полную выборку.
-      */
-    },
-  );
+    const filters = page.getByRole("button", { name: "Фильтры" });
+    await expect(filters).toBeVisible({ timeout: 15_000 });
+    await filters.click();
+
+    // Снимаем все уровни, кроме критического.
+    for (const label of ["Низкий", "Средний", "Высокий", "Нет данных"]) {
+      const checkbox = page.getByRole("checkbox", { name: new RegExp(label) });
+      if (await checkbox.isChecked()) await checkbox.uncheck();
+    }
+
+    await page.getByRole("button", { name: "Применить" }).click();
+
+    await page.waitForURL(/risk_levels=critical/, { timeout: 15_000 });
+
+    const api = await apiContext();
+    const token = await loginApi(api, "analyst");
+    const expected = (
+      await fetchObjects(api, token, { risk_levels: "critical", page_size: "1" })
+    ).page.total;
+
+    await expect(page.getByText(/Найдено/).first()).toContainText(
+      expected.toLocaleString("ru-RU"),
+      { timeout: 15_000 },
+    );
+  });
 });

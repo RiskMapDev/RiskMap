@@ -1,19 +1,18 @@
-﻿import { FileText } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { ReportsScreen } from "@/components/reports/ReportsScreen";
 
 export const metadata = { title: "Отчёты и экспорт — Карта рисков" };
 
+/**
+ * Экран «Отчёты и экспорт».
+ *
+ * Страница серверная, содержимое клиентское: каталог шаблонов и доступность
+ * форматов зависят от развёртывания, а токен пользователя живёт в браузере.
+ */
 export default function Page() {
   return (
     <AppShell>
-      <PageHeader title="Отчёты и экспорт" subtitle="Формирование аналитических справок и выгрузка данных" />
-      <EmptyState
-        icon={FileText}
-        title="Шаблоны отчётов ещё не подключены"
-        description="Восемь шаблонов по ТЗ появятся после подключения источников данных."
-      />
+      <ReportsScreen />
     </AppShell>
   );
 }

@@ -2,6 +2,8 @@
 
 import { Columns2, List, Map } from "lucide-react";
 
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+
 /**
  * Режим показа выборки.
  *
@@ -59,7 +61,19 @@ export function ViewSwitcher({
   allowSplit = true,
   className = "",
 }: ViewSwitcherProps) {
-  const modes: ViewMode[] = allowSplit ? [...VIEW_MODES] : ["list", "map"];
+  /*
+    Сдвоенный режим убирается из набора на узких экранах, а не прячется
+    правилом CSS. Раньше он прятался классом `hidden lg:inline-flex`, но
+    `hidden` и `inline-flex` — обе утилиты `display`, и в собранном CSS
+    побеждала вторая: кнопка оставалась видимой и фокусируемой на телефоне.
+
+    Убирая режим из набора, мы заодно чиним обход стрелками: на узком экране
+    в него нельзя попасть с клавиатуры, и выбрать раскладку, которая всё
+    равно не поместится, невозможно.
+  */
+  const wideEnough = useMediaQuery("(min-width: 64rem)", true);
+  const modes: ViewMode[] =
+    allowSplit && wideEnough ? [...VIEW_MODES] : ["list", "map"];
 
   const move = (delta: number) => {
     const current = modes.indexOf(value);
@@ -100,8 +114,6 @@ export function ViewSwitcher({
             onClick={() => onChange(mode)}
             className={[
               "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              /* «Карта + список» прячется на узких экранах: две колонки не помещаются. */
-              mode === "split" ? "hidden lg:inline-flex" : "",
               active
                 ? "bg-accent text-accent-fg"
                 : "text-text-muted hover:bg-surface-hover hover:text-text",
