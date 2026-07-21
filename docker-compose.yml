@@ -1,0 +1,80 @@
+# Запуск всей системы одной командой:
+#
+#     cp .env.example .env      # и заполнить JWT_SECRET
+#     docker compose up -d
+#     docker compose exec backend python -m alembic upgrade head
+#     docker compose exec backend python -m scripts.seed_access
+#
+# Дальше — либо восстановить дамп (scripts/restore-database.ps1), либо
+# загрузить данные из книг: см. README.
+#
+# ВНИМАНИЕ. Эта конфигурация написана, но НЕ ПРОВЕРЕНА запуском: на машине
+# разработки Docker отсутствует. Проверенный путь — установка без Docker,
+# см. scripts/setup-windows.ps1. Первый, кто запустит compose, должен
+# отнестись к нему как к непроверенному и сверить с docs/deployment.md.
+
+name: riskmap
+
+services:
+  db:
+    # Образ с PostGIS: расширение должно быть в самом образе, ставить его
+    # в рантайме означало бы терять его при каждом пересоздании тома.
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: riskmap
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Локаль C, как в проверенной локальной установке: сортировка
+      # кириллицы при смене локали меняется, и данные, отсортированные
+      # по-разному, перестают сходиться при сверке.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      # Наружу только на локальный интерфейс: база не должна быть видна
+      # из сети без явного решения.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d riskmap"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-dev}
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/riskmap
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET обязателен, сгенерируйте его — см. .env.example}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SOURCE_DATA_DIR: /data/source
+      DATA_DIR: /data/work
+    volumes:
+      # Каталог с книгами подключается только на чтение: комплект исходников
+      # immutable, и импорт обязан быть физически неспособен его изменить.
+      - ${SOURCE_DATA_DIR:-./data/source}:/data/source:ro
+      - work-data:/data/work
+    ports:
+      - "127.0.0.1:8100:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Адрес, который увидит браузер. Внутреннее имя `backend` сюда не
+        # годится: запрос уходит из браузера, а не из контейнера.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8100/api/v1}
+        NEXT_PUBLIC_MAP_STYLE_URL: ${NEXT_PUBLIC_MAP_STYLE_URL:-}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
+  work-data:

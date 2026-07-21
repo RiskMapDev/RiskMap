@@ -21,33 +21,105 @@
 
 ## Быстрый старт
 
-Предполагается, что PostgreSQL 18.4 с PostGIS 3.6.2 уже развёрнут на порту 5433
-(если нет — [`docs/deployment.md`](docs/deployment.md), § 1).
+Два пути. Выберите тот, что подходит вашей машине.
+
+### Путь A. Docker — одна команда
+
+Требуется Docker и Docker Compose.
+
+```bash
+cp .env.example .env
+# заполните JWT_SECRET:
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
+
+docker compose up -d
+docker compose exec backend python -m alembic upgrade head
+docker compose exec backend python -m scripts.seed_access
+```
+
+Интерфейс — `http://localhost:3000`, API и схема — `http://localhost:8100/docs`.
+
+> **Эта конфигурация написана, но не проверена запуском.** На машине, где
+> проект собирался, Docker отсутствует. Всё остальное в этом файле проверено
+> выполнением; путь через Docker — нет. Отнеситесь к первому запуску
+> соответственно и сверяйтесь с [`docs/deployment.md`](docs/deployment.md).
+
+### Путь B. Без Docker, Windows — проверенный
+
+Не требует прав администратора: PostgreSQL с PostGIS разворачивается из
+ZIP-бинарников в пользовательский каталог.
 
 ```powershell
-# 1. Backend: зависимости и схема
-cd backend
-python -m venv .venv; .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-alembic upgrade head
+# Разовая установка сервера базы — см. docs/deployment.md, § 1
+powershell -ExecutionPolicy Bypass -File scripts\setup-windows.ps1
+```
 
-# 2. Данные: манифест → территории → слои → граф → доступ
-python -m scripts.source_manifest build
+Скрипт создаёт кластер и базу, генерирует `.env` со свежим секретом, ставит
+зависимости, применяет миграции и заводит учётные записи.
+
+### Данные
+
+База поднимается пустой. Дальше одно из двух.
+
+**Если вам передали дамп:**
+
+```powershell
+powershell -File scripts\restore-database.ps1 -DumpPath dist\riskmap-....dump
+# затем обязательно смените пароли:
+cd backend; python -m scripts.seed_access --reset-passwords
+```
+
+**Если у вас есть книги комплекта ДЭР** — укажите путь к ним в `SOURCE_DATA_DIR`
+и загрузите:
+
+```powershell
+cd backend
+python -m scripts.source_manifest build      # SHA-256 источников
 python -m scripts.load_territories
 python -m scripts.load_layers --layer all
 python -m scripts.build_relations
-python -m scripts.seed_access          # напечатает пароли — сохраните их сейчас
-
-# 3. Запуск backend
-uvicorn app.main:app --host 127.0.0.1 --port 8100
-
-# 4. Frontend (в другом окне)
-cd ..\frontend
-npm ci
-npm run dev                            # http://localhost:3000
 ```
 
-Проверка живости: `http://127.0.0.1:8100/ready`.
+Импорт **никогда не пишет** в каталог источников и проверяет их неизменность по
+контрольным суммам.
+
+### Запуск
+
+```powershell
+cd backend  ; python -m uvicorn app.main:app --port 8100
+cd frontend ; npm run build ; npx next start -p 3001
+```
+
+Проверка живости: `http://127.0.0.1:8100/ready` — отвечает состоянием базы и
+версией PostGIS.
+
+---
+
+## Передача проекта другим
+
+```powershell
+# только код, без данных — безопасно
+git bundle create riskmap.bundle --all
+
+# или с данными, если получатель вправе их обрабатывать
+powershell -File scripts\dump-database.ps1                    # полный дамп
+powershell -File scripts\dump-database.ps1 -NoPersonalData    # без ПДн
+```
+
+> **Полный дамп содержит персональные данные:** БИН и ИИН 3668 организаций и
+> 3413 получателей субсидий, их наименования и суммы выплат. Это не
+> обезличенный набор. Передавайте только тем, кто вправе обрабатывать такие
+> сведения, и только по защищённому каналу.
+>
+> Ключ `-NoPersonalData` даёт дамп со схемой, справочниками и границами, но с
+> пустыми таблицами лиц и организаций — система на нём поднимется и будет
+> работоспособной.
+>
+> Дампы лежат в `dist/` и **не попадают в git**: каталог в `.gitignore`, чтобы
+> один неосторожный `git add -A` не сделал их публичными навсегда.
+
+Учётные записи входят в дамп вместе с паролями отправителя. После
+восстановления смените их: `python -m scripts.seed_access --reset-passwords`.
 Документация API: `http://127.0.0.1:8100/docs`.
 
 У каждого загрузчика есть `--dry-run`: он выполняет все вставки и проверки
