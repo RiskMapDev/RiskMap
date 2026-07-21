@@ -18,9 +18,19 @@ export default function LoginPage() {
 
     try {
       await login(loginName, password);
+
+      /*
+        Возврат туда, откуда человека отправили входить. Адрес берётся только
+        как путь внутри приложения: подставить в него чужой сайт нельзя, иначе
+        ссылка на страницу входа стала бы способом перебросить пользователя
+        куда угодно после успешного входа.
+      */
+      const requested = new URLSearchParams(window.location.search).get("back");
+      const safe = requested && requested.startsWith("/") && !requested.startsWith("//");
+
       // Полная навигация, а не router.push: после входа нужно, чтобы все
       // экраны прочитали новый токен при монтировании.
-      window.location.href = "/dashboard";
+      window.location.href = safe ? requested : "/dashboard";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось войти");
       setBusy(false);

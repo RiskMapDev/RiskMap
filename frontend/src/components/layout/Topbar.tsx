@@ -32,7 +32,16 @@ export function Topbar({ actions, unreadCount = 0 }: TopbarProps) {
     .toUpperCase();
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border-base bg-surface px-6">
+    /*
+      Роль ориентира задана явно. Элемент `header` получает её неявно только
+      когда лежит прямо в `body`; здесь он вложен в разметку оболочки и роль
+      теряет — а вместе с ней и возможность перейти к верхней панели командой
+      скринридера «к ориентирам».
+    */
+    <header
+      role="banner"
+      className="flex h-16 shrink-0 items-center gap-4 border-b border-border-base bg-surface px-6"
+    >
       {/*
         Поиск по ТЗ покрывает БИН/ИИН, ФИО, организацию, объект, договор и
         территорию. Плейсхолдер называет области поиска явно: пользователь не

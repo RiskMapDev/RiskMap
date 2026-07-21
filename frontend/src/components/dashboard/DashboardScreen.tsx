@@ -77,9 +77,23 @@ export function DashboardScreen() {
         >
           <p className="text-sm font-medium text-risk-high-text">Панель не загрузилась</p>
           <p className="mt-1 text-sm text-text-muted">{error}</p>
-          <p className="mt-1 text-xs text-text-subtle">
-            Это сбой связи с сервером, а не отсутствие данных.
-          </p>
+          {/*
+            Пояснение зависит от причины. Раньше оно было одно на все случаи и
+            под сообщением «сессия не начата» утверждало «это сбой связи с
+            сервером» — два противоречащих объяснения одной ошибки.
+          */}
+          {error.includes("Сессия") ? (
+            <a
+              href="/login"
+              className="mt-2 inline-block text-xs font-medium text-accent underline"
+            >
+              Перейти ко входу
+            </a>
+          ) : (
+            <p className="mt-1 text-xs text-text-subtle">
+              Это сбой связи с сервером, а не отсутствие данных.
+            </p>
+          )}
         </div>
       )}
 

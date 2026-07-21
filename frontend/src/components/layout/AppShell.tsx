@@ -1,3 +1,4 @@
+import { AuthGuard } from "@/components/layout/AuthGuard";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 
@@ -20,6 +21,12 @@ interface AppShellProps {
  */
 export function AppShell({ children, actions, bleed = false }: AppShellProps) {
   return (
+    /*
+      Проверка сессии обёрнута вокруг всей оболочки, а не вставлена в каждый
+      экран: пропустить её на одном экране слишком легко, и именно там
+      пользователь и увидел бы пустое меню с подписью «Гость».
+    */
+    <AuthGuard>
     <div className="flex h-dvh overflow-hidden">
       {/*
         Сайдбар скрыт на узких экранах: по ТЗ на мобильном основной режим —
@@ -43,5 +50,6 @@ export function AppShell({ children, actions, bleed = false }: AppShellProps) {
         </main>
       </div>
     </div>
+    </AuthGuard>
   );
 }
