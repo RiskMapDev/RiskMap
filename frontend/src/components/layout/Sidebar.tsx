@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { Logo } from "@/components/layout/Logo";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 
 interface NavItem {
@@ -61,7 +62,7 @@ export function Sidebar() {
           aria-hidden="true"
           className="grid size-8 place-items-center rounded-lg bg-accent text-accent-fg"
         >
-          <Map className="size-4.5" strokeWidth={2.5} />
+          <Logo className="size-6" />
         </span>
         <span className="text-[15px] font-semibold text-white">Карта рисков</span>
       </div>

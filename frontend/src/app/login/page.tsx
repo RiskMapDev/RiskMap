@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { LogIn, Map } from "lucide-react";
+import { LogIn } from "lucide-react";
 
+import { Logo } from "@/components/layout/Logo";
 import { login } from "@/lib/api/auth";
 
 export default function LoginPage() {
@@ -45,7 +46,7 @@ export default function LoginPage() {
             aria-hidden="true"
             className="grid size-9 place-items-center rounded-lg bg-accent text-accent-fg"
           >
-            <Map className="size-5" strokeWidth={2.5} />
+            <Logo className="size-6" />
           </span>
           <span className="text-lg font-semibold text-text">Карта рисков</span>
         </div>
