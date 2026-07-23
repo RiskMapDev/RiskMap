@@ -155,30 +155,14 @@ export function MapView({
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 
-    map.on("load", () => {
-      // Контейнер во flex-вёрстке может получить итоговую высоту уже после
-      // конструктора карты. MapLibre фиксирует размер canvas в момент
-      // инициализации и сам за контейнером не следит: без принудительного
-      // resize карта остаётся пустой (виден только фон и элементы управления,
-      // а полигоны не рисуются). Явный resize по событию load и наблюдатель
-      // ниже закрывают этот случай.
-      map.resize();
-      setReady(true);
-    });
+    map.on("load", () => setReady(true));
     map.on("error", (event) => {
       setFailed(event.error?.message ?? "ошибка карты");
     });
 
     mapRef.current = map;
 
-    // Следим за размером контейнера и переразмериваем карту при каждом
-    // изменении — покрывает и первичную раскладку, и сворачивание сайдбаров,
-    // и смену режима «На карте» / «Карта + список».
-    const observer = new ResizeObserver(() => map.resize());
-    observer.observe(containerRef.current);
-
     return () => {
-      observer.disconnect();
       map.remove();
       mapRef.current = null;
       setReady(false);
