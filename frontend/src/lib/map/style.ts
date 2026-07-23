@@ -13,7 +13,15 @@ import type { StyleSpecification } from "maplibre-gl";
  * следует: это и утечка запросов наружу, и зависимость, которой в закрытом
  * контуре не будет.
  */
-export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL ?? null;
+/*
+  Именно `|| null`, а не `?? null`: при сборке в Docker переменная приходит
+  ПУСТОЙ СТРОКОЙ (`NEXT_PUBLIC_MAP_STYLE_URL=` в .env и `${...:-}` в compose),
+  а `??` пустую строку пропускает. MapLibre тогда получает адрес стиля "",
+  стиль не загружается никогда, событие load не наступает — карта остаётся
+  белой при живых контролах. Путь без Docker не задевало: там переменная
+  не определена вовсе (undefined), и `??` срабатывал.
+*/
+export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL?.trim() || null;
 
 /** Границы Казахстана, чтобы карта не улетала в океан. */
 export const KAZAKHSTAN_BOUNDS: [[number, number], [number, number]] = [
