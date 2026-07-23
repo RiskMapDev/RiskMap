@@ -522,17 +522,45 @@ class TestЗагрузкаВБазу:
         ).first()
         assert issue is not None
 
-    def test_като_только_у_двух_областей(self, session: Session) -> None:
-        with_kato = session.scalars(
-            select(Territory.code).where(Territory.kato_code.is_not(None))
+    def test_като_всех_регионов_достроен_формулой(self, session: Session) -> None:
+        """20 регионов: тег OSM у 2, остальные 18 — по формуле ISO 3166-2 → КАТО."""
+        rows = session.execute(
+            select(Territory.iso3166_2, Territory.kato_code).where(
+                Territory.level == TerritoryLevel.REGION
+            )
         ).all()
-        assert sorted(with_kato) == ["almaty-oblast", "karaganda-oblast"]
+        assert len(rows) == 20
+        for iso, kato in rows:
+            assert kato is not None, iso
+            # Формула: две цифры кода региона + семь нулей.
+            assert kato == iso.split("-")[1] + "0000000"
 
-    def test_у_районов_като_пустой(self, session: Session) -> None:
-        codes = session.scalars(
-            select(Territory.kato_code).where(Territory.level == TerritoryLevel.DISTRICT)
-        ).all()
-        assert all(code is None for code in codes)
+    def test_като_районов_из_агрегатора_с_замечанием(self, session: Session) -> None:
+        """У 9 районов КАТО заполнен из tenderplus, помечен замечанием на сверку."""
+        codes = dict(
+            session.execute(
+                select(Territory.code, Territory.kato_code).where(
+                    Territory.level == TerritoryLevel.DISTRICT
+                )
+            ).all()
+        )
+        assert codes["balkhashskiy"] == "193600000"
+        assert codes["talgarskiy"] == "196200000"
+        assert all(code is not None for code in codes.values())
+
+        issue = session.scalars(
+            select(DataQualityIssue).where(
+                DataQualityIssue.code == "kato_from_aggregator"
+            )
+        ).first()
+        assert issue is not None
+
+    def test_алатау_без_като(self, session: Session) -> None:
+        """Город Алатау (2024): достоверного кода нет — поле честно пустое."""
+        kato = session.scalar(
+            select(Territory.kato_code).where(Territory.code == "alatau-city")
+        )
+        assert kato is None
 
     def test_алиасы_содержат_опечатки_книги(self, session: Session) -> None:
         stored = set(session.scalars(select(TerritoryAlias.alias)).all())

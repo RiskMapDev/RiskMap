@@ -138,14 +138,22 @@ def build_kpis(
     )
 
     # --- Субсидии -------------------------------------------------------------
+    # Показатель озаглавлен «Алматинской области», поэтому в сумму входят только
+    # получатели, привязанные к территории текущей области (territory_id задан).
+    # Книга 8.5 использует ДОреформенную сетку из 24 районов, 11 из которых с
+    # 2022 года отошли к области Жетысу; их получатели остаются без territory_id
+    # (см. territory-reconciliation.md, § 4.1). Складывать их сумму в число,
+    # подписанное текущей областью, значило бы завысить его на объём Жетысу.
+    # Полнокнижный итог как проверка целостности загрузки — в тестах слоя 8.5.
+    in_oblast = SubsidyRecipient.territory_id.is_not(None)
     subsidies_stmt = _scoped(
-        select(func.sum(SubsidyRecipient.total_amount)),
+        select(func.sum(SubsidyRecipient.total_amount)).where(in_oblast),
         SubsidyRecipient.territory_id,
         allowed_territory_ids,
     )
     recipients_count = session.scalar(
         _scoped(
-            select(func.count()).select_from(SubsidyRecipient),
+            select(func.count()).select_from(SubsidyRecipient).where(in_oblast),
             SubsidyRecipient.territory_id,
             allowed_territory_ids,
         )
@@ -157,7 +165,13 @@ def build_kpis(
             value=_money(session, subsidies_stmt),
             unit="₸",
             caption=f"{recipients_count or 0} получателей",
-            definition="Сумма субсидий получателей Алматинской области.",
+            definition=(
+                "Сумма субсидий получателей текущей Алматинской области — тех, "
+                "чей район опознан в справочнике. Получатели из районов, "
+                "переданных в 2022 году в область Жетысу, и с неопознанным "
+                "районом в этот показатель не входят: книга 8.5 ведётся по "
+                "дореформенной сетке, и их включение завысило бы областную сумму."
+            ),
             sources=("Слой 8.5 «Субсидии»",),
             data_as_of="2024",
             drill_down={"object_types": "subsidy_recipient"},
@@ -231,8 +245,12 @@ def build_kpis(
     )
 
     # --- Сумма финансовых рисков ----------------------------------------------
+    # Та же территориальная логика, что у суммы субсидий: экспозиция считается по
+    # получателям текущей области, иначе величина включала бы объём Жетысу.
     exposure_stmt = _scoped(
-        select(func.sum(SubsidyRecipient.risk_exposure)),
+        select(func.sum(SubsidyRecipient.risk_exposure)).where(
+            SubsidyRecipient.territory_id.is_not(None)
+        ),
         SubsidyRecipient.territory_id,
         allowed_territory_ids,
     )

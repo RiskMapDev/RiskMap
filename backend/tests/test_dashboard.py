@@ -50,10 +50,33 @@ class TestПоказатели:
             if not kpi.is_available:
                 assert kpi.reason.strip(), f"{kpi.code} без причины"
 
-    def test_сумма_субсидий_совпадает_с_книгой(self, session: Session) -> None:
+    def test_книга_субсидий_загружена_полностью(self, session: Session) -> None:
+        """Целостность загрузки: сумма всех получателей книги совпадает с ней.
+
+        Это проверка импорта, а не показателя панели: в неё входят и получатели
+        районов, отошедших в область Жетысу. Отдельно от KPI, который считает
+        только текущую область (см. тест ниже).
+        """
+        from sqlalchemy import func, select
+
+        from app.db.models.subsidy import SubsidyRecipient
+
+        total = session.scalar(select(func.sum(SubsidyRecipient.total_amount)))
+        assert float(total) == pytest.approx(67_535_553_445, rel=1e-9)
+
+    def test_сумма_субсидий_только_по_текущей_области(self, session: Session) -> None:
+        """KPI озаглавлен «Алматинской области» и обязан считать только её.
+
+        Книга 8.5 — по дореформенной сетке; 11 из 24 её районов с 2022 года
+        относятся к области Жетысу. Их получатели остаются без territory_id и в
+        областную сумму не входят: иначе показатель, подписанный текущей
+        областью, включал бы объём другой области. Значение подтверждено
+        независимым пересчётом (см. docs/cross-validation-8-5.md).
+        """
         subsidies = next(k for k in dashboard.build_kpis(session) if k.code == "subsidies")
 
-        assert subsidies.value == pytest.approx(67_535_553_445, rel=1e-9)
+        assert subsidies.value == pytest.approx(56_728_963_595, rel=1e-9)
+        assert "текущей Алматинской области" in subsidies.definition
 
     def test_организации_не_ограничиваются_территорией(self, session: Session) -> None:
         """У слоя 8.7 территориальной привязки нет ни в каком виде.

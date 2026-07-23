@@ -216,6 +216,44 @@ ALMATY_UNIT_CODES: Final[dict[int, str]] = {
 # различить их по геоданным невозможно.
 ALMATY_CITY_CODES: Final[frozenset[str]] = frozenset({"konaev-city", "alatau-city"})
 
+# --- КАТО ------------------------------------------------------------------
+# В геонаборах тег `kato` заполнен лишь у 2 из 20 регионов, у единиц второго
+# уровня — ни у одной. Официального справочника КАТО в комплекте нет.
+#
+# Коды РЕГИОНОВ выводятся из ISO 3166-2 однозначно: две цифры кода региона плюс
+# семь нулей (KZ-19 → 190000000). Формула проверена на двух заполненных тегах
+# OSM — Алматинская 190000000 и Карагандинская 350000000 — и совпала. Поэтому
+# коды регионов достраиваются формулой, а не берутся из внешнего справочника.
+REGION_KATO: Final[dict[str, str]] = {
+    code: iso.split("-")[1] + "0000000" for iso, code in REGION_CODES.items()
+}
+
+# Коды ЕДИНИЦ ВТОРОГО УРОВНЯ такой формулой не выводятся. Взяты из агрегатора
+# tenderplus.kz/kato (ветка 190000000). Источник неофициальный: до ввода в
+# эксплуатацию их нужно сверить с классификатором КАТО Бюро нацстатистики.
+# Проставление сопровождается замечанием `kato_from_aggregator` по каждой
+# единице — код заполнен, но помечен как требующий подтверждения.
+#
+# alatau-city намеренно отсутствует: город создан в 2024 г., в справочнике
+# агрегатора его строка искажена (смешана с почтовым адресом), и достоверного
+# кода нет — пустое значение честнее подставленного наугад.
+ALMATY_UNIT_KATO: Final[dict[str, str]] = {
+    "balkhashskiy": "193600000",
+    "enbekshikazakhskiy": "194000000",
+    "zhambylskiy": "194200000",
+    "kegenskiy": "194400000",
+    "karasayskiy": "195200000",
+    "raiymbekskiy": "195800000",
+    "talgarskiy": "196200000",
+    "uygurskiy": "196600000",
+    "iliyskiy": "196800000",
+    "konaev-city": "191000000",
+}
+
+# Внутренние коды территорий, чей КАТО достроен из неофициального агрегатора
+# и подлежит сверке с БНС.
+KATO_FROM_AGGREGATOR: Final[frozenset[str]] = frozenset(ALMATY_UNIT_KATO)
+
 # Площади, заявленные ведомственным документом «Административно-территориальный
 # слой» (см. PROVENANCE.md, § 6). Хранятся отдельно от вычисленных: расхождение
 # между ними — самостоятельный факт, а не повод переписать одну из величин.
@@ -1198,8 +1236,22 @@ class TerritoryLoader:
                 notes.append(VALID_FROM_NOTES[feature.code])
             if feature.code in APPROXIMATE_AREA_CODES:
                 notes.append("Площадь по документу дана приблизительно (со знаком «~»).")
-            if feature.kato_code is None:
-                notes.append("Код КАТО в источниках отсутствует; поле оставлено пустым.")
+
+            # КАТО: приоритет — тег из геонабора; затем формула ISO→КАТО для
+            # регионов; затем таблица агрегатора для единиц второго уровня.
+            kato_code = (
+                feature.kato_code
+                or REGION_KATO.get(feature.code)
+                or ALMATY_UNIT_KATO.get(feature.code)
+            )
+            if kato_code is None:
+                notes.append("Код КАТО достоверно не определён; поле оставлено пустым.")
+            elif feature.code in KATO_FROM_AGGREGATOR:
+                notes.append(
+                    "Код КАТО взят из агрегатора tenderplus.kz и подлежит сверке "
+                    "с классификатором БНС."
+                )
+
             territory = self._upsert_territory(
                 code=feature.code,
                 boundary_version=version,
@@ -1210,7 +1262,7 @@ class TerritoryLoader:
                 name_kk=feature.name_kk,
                 name_en=feature.name_en,
                 iso3166_2=feature.iso3166_2,
-                kato_code=feature.kato_code,
+                kato_code=kato_code,
                 osm_relation_id=feature.osm_relation_id,
                 natural_key=feature.osm_ref,
                 source_row_ref=feature.source_row_ref,
@@ -1575,11 +1627,28 @@ class TerritoryLoader:
         self._issue(
             IssueSeverity.INFO,
             "kato_missing",
-            f"КАТО отсутствует у {len(without_kato)} из {len(self._territories)} территорий. "
-            "Код есть только у Алматинской и Карагандинской областей; у районов его нет "
-            "ни в одном источнике. Коды не достраивались.",
+            f"КАТО не определён у {len(without_kato)} из {len(self._territories)} территорий. "
+            "Коды регионов достроены по формуле ISO 3166-2 → КАТО (проверена на 2 "
+            "заполненных тегах OSM), коды 10 единиц Алматинской области — из агрегатора "
+            "tenderplus.kz. Без кода остаются страна и город Алатау (создан в 2024 г., "
+            "достоверного кода в источниках нет).",
             context={"codes": without_kato},
         )
+
+        from_aggregator = sorted(
+            code
+            for code, territory in self._territories.items()
+            if code in KATO_FROM_AGGREGATOR and territory.kato_code is not None
+        )
+        if from_aggregator:
+            self._issue(
+                IssueSeverity.WARNING,
+                "kato_from_aggregator",
+                f"КАТО у {len(from_aggregator)} единиц Алматинской области взят из "
+                "неофициального агрегатора tenderplus.kz и подлежит сверке с "
+                "классификатором Бюро нацстатистики до ввода в эксплуатацию.",
+                context={"codes": from_aggregator},
+            )
 
         aliases_payload: dict[str, Any] = json.loads(aliases_path.read_text(encoding="utf-8"))
         for code, candidates in book_alias_candidates(aliases_payload).items():

@@ -29,7 +29,10 @@ services:
       # по-разному, перестают сходиться при сверке.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # В образах PostgreSQL 18+ данные лежат в /var/lib/postgresql/<major>/,
+      # и монтировать том нужно на /var/lib/postgresql, а не на .../data —
+      # иначе образ отказывается стартовать (docker-library/postgres#1259).
+      - db-data:/var/lib/postgresql
     ports:
       # Наружу только на локальный интерфейс: база не должна быть видна
       # из сети без явного решения. Порт хоста настраиваемый: 5432 у
