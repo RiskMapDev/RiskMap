@@ -17,3 +17,8 @@
 *.bat text eol=crlf
 *.bat text eol=crlf
 *.sh text eol=lf
+
+# Файлы с зафиксированным в PROVENANCE.md SHA-256: байты неприкосновенны,
+# нормализация LF ломает проверку происхождения (SHA не сходится на свежем клоне).
+data/boundaries/*.geojson -text
+data/boundaries/region-aliases-8-3.json -text
